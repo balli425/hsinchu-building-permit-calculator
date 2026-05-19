@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新竹縣建照申請掛件費用計算系統 V3.1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; background: linear-gradient(135deg, #e8edf5 0%, #f1f5f9 60%, #e8f0fe 100%); min-height: 100vh; }
+
+        /* ── 身分卡片 ── */
+        .id-card {
+            border: 2.5px solid #e2e8f0; border-radius: 18px; padding: 22px;
+            cursor: pointer; transition: all 0.2s; background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .id-card:hover { border-color: #3b82f6; box-shadow: 0 4px 20px rgba(59,130,246,0.15); transform: translateY(-1px); }
+        .id-card.selected-local   { border-color: #4a7fc1; background: linear-gradient(135deg, #eff6ff, #dbeafe); box-shadow: 0 4px 20px rgba(29,78,216,0.18); }
+        .id-card.selected-outside { border-color: #1a8a7a; background: linear-gradient(135deg, #f0fdfa, #ccfbf1); box-shadow: 0 4px 20px rgba(15,118,110,0.18); }
+
+        /* ── 繳費階段按鈕 ── */
+        .stage-btn {
+            flex: 1; padding: 10px 4px; border: 2px solid #e2e8f0;
+            border-radius: 12px; font-weight: 900; font-size: 14px;
+            cursor: pointer; transition: all 0.15s; background: white;
+            text-align: center; color: #64748b;
+        }
+        .stage-btn:hover { border-color: #3b82f6; color: #4a7fc1; background: #eff6ff; }
+        .stage-btn.active-70  { border-color: #4a7fc1; background: linear-gradient(135deg,#4a7fc1,#5b8dd9); color: white; box-shadow: 0 4px 12px rgba(29,78,216,0.35); }
+        .stage-btn.active-30  { border-color: #1a6b50; background: linear-gradient(135deg,#1a6b50,#1e7f60); color: white; box-shadow: 0 4px 12px rgba(6,95,70,0.35); }
+        .stage-btn.active-100 { border-color: #a0520f; background: linear-gradient(135deg,#a0520f,#c07010); color: white; box-shadow: 0 4px 12px rgba(146,64,14,0.35); }
+
+        /* ── 數字輸入欄 ── */
+        .num-input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid #cbd5e1;
+            border-radius: 12px;
+            background: #f8fafc;
+            font-family: 'Courier New', monospace;
+            font-weight: 700;
+            text-align: right;
+            font-size: 16px;
+            color: #dc2626;
+            transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+            outline: none;
+        }
+        .num-input:focus {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            color: #dc2626;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+        }
+        .num-input.done { color: #3a5278; }
+
+        .num-input.cost-style {
+            font-size: 22px;
+            font-weight: 900;
+            border-color: #3b82f6;
+            background: linear-gradient(135deg,#eff6ff,#dbeafe);
+        }
+        .num-input.cost-style:focus  { border-color: #4a7fc1; box-shadow: 0 0 0 3px rgba(29,78,216,0.18); }
+        .num-input.cost-style.done   { color: #4a7fc1; }
+
+        /* ── PDF A4 頁面 ── */
+        .preview-scroll-container {
+            overflow-x: auto; background: linear-gradient(180deg,#3a5278 0%,#2a3d5c 100%);
+            padding: 40px 0; display: flex; flex-direction: column;
+            align-items: center; gap: 40px;
+        }
+        .pdf-export-mode {
+            padding: 0 !important; gap: 0 !important;
+            background: transparent !important; display: block !important;
+        }
+        .pdf-export-mode .a4-page {
+            box-shadow: none !important;
+            margin: 0 !important;
+            height: 386mm !important;
+            min-height: unset !important;
+            page-break-after: always;
+        }
+        .pdf-export-mode .a4-page:last-child {
+            page-break-after: auto !important;
+        }
+        /* JS 動態加到最後一個可見頁，確保不強制換頁 */
+        .pdf-export-mode .pdf-last-page {
+            page-break-after: auto !important;
+        }
+
+        .a4-page {
+            background: #fff; width: 273mm; min-height: 386mm;
+            padding: 18mm 20mm; box-sizing: border-box; display: flex;
+            flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            page-break-after: always; page-break-inside: avoid; margin: 0 auto;
+            border-radius: 2px;
+        }
+        .receipt-border {
+            border: 2.5pt solid #2d5a9e; padding: 18pt; flex-grow: 1;
+            display: flex; flex-direction: column; box-sizing: border-box;
+            border-radius: 4pt;
+        }
+        .stable-table { width: 100%; border-collapse: collapse; }
+        .stable-table td, .stable-table th { vertical-align: middle; }
+        .bar-title {
+            background: linear-gradient(90deg, #2d5a9e 0%, #4a7fc1 100%);
+            color: white; padding: 7pt 14pt;
+            font-weight: 900; font-size: 11.5pt; border-radius: 6pt 6pt 0 0; margin-top: 14pt;
+            letter-spacing: 0.5pt;
+        }
+        .section-content { padding: 12pt 15pt; border: 1pt solid #cbd5e1; border-radius: 0 0 6pt 6pt; }
+        .row-line { border-bottom: 0.5pt solid #cbd5e1; }
+
+        .ref-table { font-size: 12px; border-collapse: collapse; width: 100%; }
+        .ref-table th { background: linear-gradient(90deg,#3a5278,#4a627a); color: white; padding: 7px 10px; }
+        .ref-table td { padding: 5px 10px; border-bottom: 1px solid #e2e8f0; }
+        .ref-table tr:hover td { background: #f8fafc; }
+
+        @media print {
+            .no-print { display: none !important; }
+            @page { size: 273mm 386mm portrait; margin: 0; }
+            body, html { background: white !important; }
+            .preview-scroll-container { background: transparent !important; padding: 0 !important; display: block !important; }
+            .a4-page { box-shadow: none !important; margin: 0 !important; height: 386mm !important; page-break-after: always; }
+            .a4-page:last-child { page-break-after: auto !important; }
+        }
+
+        /* ── 網頁 header 漸層 ── */
+        .site-header {
+            background: linear-gradient(135deg, #2d5a9e 0%, #4a7fc1 50%, #7eb8f0 100%);
+            border-radius: 20px; padding: 32px 24px; margin-bottom: 28px;
+            box-shadow: 0 8px 32px rgba(29,78,216,0.3);
+            position: relative; overflow: hidden;
+        }
+        .site-header::before {
+            content: ''; position: absolute; top: -40px; right: -40px;
+            width: 180px; height: 180px; border-radius: 50%;
+            background: rgba(255,255,255,0.06);
+        }
+        .site-header::after {
+            content: ''; position: absolute; bottom: -60px; left: 20px;
+            width: 240px; height: 240px; border-radius: 50%;
+            background: rgba(255,255,255,0.04);
+        }
+
+        /* ── 步驟標籤 ── */
+        .step-badge {
+            background: linear-gradient(135deg,#4a7fc1,#5b8dd9);
+            color: white; border-radius: 50%; width: 30px; height: 30px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: 900; flex-shrink: 0;
+            box-shadow: 0 3px 10px rgba(29,78,216,0.4);
+        }
+
+        /* ── 輸入卡片 ── */
+        .input-card {
+            background: white; border-radius: 20px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            border: 1.5px solid #e8edf5; padding: 24px;
+        }
+
+        /* ── 即時摘要列 ── */
+        .summary-bar {
+            background: linear-gradient(135deg,#2a3d5c,#2d5a9e);
+            border-radius: 18px; padding: 20px 24px;
+            box-shadow: 0 6px 24px rgba(15,23,42,0.4);
+        }
+    </style>
+</head>
+<body class="pb-16">
+<div class="container mx-auto px-4 py-8 max-w-6xl">
+
+    <!-- 標題 -->
+    <header class="site-header text-center no-print">
+        <div class="inline-block bg-white bg-opacity-20 text-white px-5 py-1 rounded-full text-xs font-bold mb-3 tracking-widest backdrop-blur-sm" style="border:1px solid rgba(255,255,255,0.3);">社團法人新竹縣建築師公會</div>
+        <h1 class="text-3xl font-black text-white" style="text-shadow:0 2px 8px rgba(0,0,0,0.3);">建照申請掛件費用計算系統</h1>
+        <p class="text-blue-100 mt-2 text-sm opacity-90">依據新竹縣建築師酬金標準表及協檢作業收費標準自動計算 ｜ V1.8</p>
+    </header>
+
+    <!-- STEP 1 -->
+    <div class="no-print mb-6">
+        <div class="flex items-center mb-4">
+            <span class="step-badge mr-3">1</span>
+            <h2 class="text-lg font-black text-slate-700">選擇建築師身分</h2>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="id-card selected-local" id="card-local" onclick="selectType('local')">
+                <div class="flex items-start gap-3">
+                    <div class="w-5 h-5 rounded-full border-2 border-blue-600 flex items-center justify-center mt-1 flex-shrink-0" id="radio-local">
+                        <div class="w-2.5 h-2.5 rounded-full bg-blue-600"></div>
+                    </div>
+                    <div>
+                        <div class="font-black text-blue-800 text-base">新竹縣建築師公會會員</div>
+                        <div class="text-sm text-slate-600 mt-1">須繳設計費（酬金）進公會，掛件70%、領照30%</div>
+                        <div class="mt-2 flex flex-wrap gap-1">
+                            <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold">設計費酬金</span>
+                            <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold">協檢費</span>
+                            <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold">行政作業費</span>
+                            <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold">事業費</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="id-card" id="card-outside" onclick="selectType('outside')">
+                <div class="flex items-start gap-3">
+                    <div class="w-5 h-5 rounded-full border-2 border-slate-400 flex items-center justify-center mt-1 flex-shrink-0" id="radio-outside">
+                        <div class="w-2.5 h-2.5 rounded-full bg-transparent"></div>
+                    </div>
+                    <div>
+                        <div class="font-black text-teal-800 text-base">外縣市建築師</div>
+                        <div class="text-sm text-slate-600 mt-1">不繳設計費，依工程造價繳交事業補助費及協審費</div>
+                        <div class="mt-2 flex flex-wrap gap-1">
+                            <span class="bg-teal-100 text-teal-700 text-xs px-2 py-0.5 rounded-full font-bold">事業補助費 4/10,000</span>
+                            <span class="bg-teal-100 text-teal-700 text-xs px-2 py-0.5 rounded-full font-bold">協審費 1/10,000</span>
+                            <span class="bg-teal-100 text-teal-700 text-xs px-2 py-0.5 rounded-full font-bold">行政作業費</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="no-print mb-6">
+        <div class="flex items-center mb-4">
+            <span class="step-badge mr-3">2</span>
+            <h2 class="text-lg font-black text-slate-700">填入案件資料</h2>
+        </div>
+
+        <div id="layout-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- 左欄 -->
+            <div class="input-card space-y-4">
+
+                <!-- 建築物類別 -->
+                <div id="block-caseType">
+                    <label class="block text-xs font-bold text-slate-500 mb-1">建築物類別（對應酬金標準表）</label>
+                    <select id="caseType" onchange="calculateAll()"
+                        class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl bg-slate-50 font-bold text-slate-800 outline-none focus:border-blue-500 transition-colors">
+                        <option value="general">一般建築（倉庫、工廠、四層以下住宅、店舖…）5.5%起</option>
+                        <option value="public">公共及高層建築（辦公大樓、市場、旅館…）6.0%起</option>
+                        <option value="special">特殊建築（高級住宅、博物館、觀光飯店、醫院…）7.0%起</option>
+                    </select>
+                </div>
+
+                <!-- 所屬建築師公會（外縣市才顯示，平等互惠原則） -->
+                <div id="block-homeCounty" style="display:none;">
+                    <label class="block text-xs font-bold text-slate-500 mb-1">所屬建築師公會（平等互惠原則）</label>
+                    <select id="homeCounty" onchange="calculateAll()"
+                        class="w-full px-3 py-2.5 border-2 border-teal-300 rounded-xl bg-teal-50 font-bold text-teal-800 outline-none focus:border-teal-500 transition-colors">
+                                                <option value="taoyuan">桃園市建築師公會</option>
+                        <option value="taipei">臺北市建築師公會</option>
+                        <option value="newTaipei">新北市建築師公會</option>
+                        <option value="other">其他縣市公會（依新竹縣費率計算）</option>
+                    </select>
+                    <div id="county-rate-hint" style="display:none;" class="text-xs mt-2 p-2 rounded-lg border font-bold"></div>
+                </div>
+
+                <!-- 繳費階段 -->
+                <div id="block-stage">
+                    <label class="block text-xs font-bold text-slate-500 mb-2">繳費階段</label>
+                    <div class="flex gap-2">
+                        <button class="stage-btn active-70" id="btn-70"  onclick="setStage('70')">掛件繳納<br><span class="text-xs font-bold opacity-80">70%</span></button>
+                        <button class="stage-btn"           id="btn-30"  onclick="setStage('30')">領照繳納<br><span class="text-xs font-bold opacity-80">30%</span></button>
+                        <button class="stage-btn"           id="btn-100" onclick="setStage('100')">一次繳清<br><span class="text-xs font-bold opacity-80">100%</span></button>
+                    </div>
+                </div>
+
+                <!-- 合作設計案比例（本縣才顯示） -->
+                <div id="block-collab">
+                    <label class="block text-xs font-bold text-slate-500 mb-2">設計案類型</label>
+                    <div class="flex flex-wrap gap-4 mb-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="collabType" id="collab-solo" value="solo"
+                                   checked onchange="handleCollabChange()" class="accent-blue-600 w-4 h-4">
+                            <span class="text-sm font-bold text-slate-700">單獨設計案（100%）</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="collabType" id="collab-joint" value="joint"
+                                   onchange="handleCollabChange()" class="accent-blue-600 w-4 h-4">
+                            <span class="text-sm font-bold text-slate-700">合作設計案</span>
+                        </label>
+                    </div>
+                    <div id="block-collab-pct" style="display:none;" class="flex items-center gap-2 mt-1 pl-1">
+                        <span class="text-sm text-slate-600 font-bold">本案比例：</span>
+                        <input type="number" id="collabPct" min="1" max="99" value="50"
+                               class="w-20 px-2 py-1.5 border-2 border-blue-300 rounded-lg text-sm font-black text-center outline-none focus:border-blue-500"
+                               oninput="calculateAll()">
+                        <span class="text-sm font-bold text-slate-600">%</span>
+                        <span class="text-xs text-slate-400">（1 ～ 99 %）</span>
+                    </div>
+                </div>
+
+                <!-- 構造類別 -->
+                <div id="block-structure">
+                    <label class="block text-xs font-bold text-slate-500 mb-1">構造類別（對照法定造價表，供確認用）</label>
+                    <select id="structureType" onchange="updateRefCost()"
+                        class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl bg-slate-50 font-bold outline-none focus:border-blue-500 transition-colors">
+                        <option value="5400">鋼骨或鋼筋混凝土 五層以下（5,400元/㎡）</option>
+                        <option value="6400">鋼骨或鋼筋混凝土 六至十層（6,400元/㎡）</option>
+                        <option value="9200">鋼骨或鋼筋混凝土 十一至十五層（9,200元/㎡）</option>
+                        <option value="9700">鋼骨或鋼筋混凝土 十六至二十層（9,700元/㎡）</option>
+                        <option value="10800">鋼骨或鋼筋混凝土 二十一層以上（10,800元/㎡）</option>
+                        <option value="4200">鋼筋混凝土加強磚造（4,200元/㎡）</option>
+                        <option value="3000">磚造（3,000元/㎡）</option>
+                        <option value="3000">木造（3,000元/㎡）</option>
+                        <option value="3000">磚木造（3,000元/㎡）</option>
+                        <option value="3000">磚石造（3,000元/㎡）</option>
+                        <option value="3600">鋼鐵造有牆者（3,600元/㎡）</option>
+                        <option value="2500">鋼鐵造無牆者（2,500元/㎡）</option>
+                        <option value="1800">圍牆（1,800元/公尺）</option>
+                    </select>
+                </div>
+
+                <!-- 樓地板面積 -->
+                <div id="block-area">
+                    <label class="block text-xs font-bold text-slate-500 mb-1">總樓地板面積（㎡）</label>
+                    <div class="flex gap-2 items-center">
+                        <input type="text" id="input-area" inputmode="decimal" placeholder="請輸入面積"
+                            class="num-input flex-1"
+                            oninput="handleInput('area')"
+                            onblur="handleBlur('area')"
+                            onfocus="handleFocus('area')">
+                        <span class="text-slate-500 font-bold flex-shrink-0">㎡</span>
+                    </div>
+                    <p id="refCostHint" class="text-xs text-slate-400 mt-1"></p>
+                </div>
+
+                <!-- 工程造價 -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">總法定工程造價（元，建築師自行填入）</label>
+                    <div class="flex gap-2 items-center">
+                        <span class="text-slate-600 font-bold flex-shrink-0">NT$</span>
+                        <input type="text" id="input-cost" inputmode="numeric" placeholder="請輸入工程造價"
+                            class="num-input cost-style flex-1"
+                            oninput="handleInput('cost')"
+                            onblur="handleBlur('cost')"
+                            onfocus="handleFocus('cost')">
+                    </div>
+                </div>
+
+                <!-- 業主另外給付 -->
+                <div id="block-ownerPay" class="pt-3 border-t border-slate-100">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" id="isOwnerPay" onchange="calculateAll()"
+                            class="w-5 h-5 rounded accent-blue-600">
+                        <div>
+                            <span class="text-sm font-bold text-slate-700">業主另外給付酬金</span>
+                            <span class="ml-2 text-xs text-slate-400">（設計費 × 0.9 倍作為公會收款）</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 右欄：法定造價參考表 -->
+            <div class="input-card" id="block-refTable">
+                <h3 class="text-sm font-black text-slate-700 mb-3" style="border-left:4px solid #4a7fc1;padding-left:10px;">
+                    新竹縣建築物及雜項工作物工程造價標準<br>
+                    <span class="text-xs text-slate-400 font-normal">（113年8月版，供建築師對照檢核）</span>
+                </h3>
+                <table class="ref-table">
+                    <thead><tr>
+                        <th class="text-left">構造類別</th>
+                        <th class="text-center">單位</th>
+                        <th class="text-right">單價（元）</th>
+                    </tr></thead>
+                    <tbody>
+                        <tr><td>鋼骨或鋼筋混凝土 五層以下</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">5,400</td></tr>
+                        <tr><td>鋼骨或鋼筋混凝土 六至十層</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">6,400</td></tr>
+                        <tr><td>鋼骨或鋼筋混凝土 十一至十五層</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">9,200</td></tr>
+                        <tr><td>鋼骨或鋼筋混凝土 十六至二十層</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">9,700</td></tr>
+                        <tr><td>鋼骨或鋼筋混凝土 二十一層以上</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">10,800</td></tr>
+                        <tr><td>鋼筋混凝土加強磚造</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">4,200</td></tr>
+                        <tr><td>磚造</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">3,000</td></tr>
+                        <tr><td>木造</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">3,000</td></tr>
+                        <tr><td>磚木造</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">3,000</td></tr>
+                        <tr><td>磚石造</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">3,000</td></tr>
+                        <tr><td>鋼鐵造有牆者</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">3,600</td></tr>
+                        <tr><td>鋼鐵造無牆者</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">2,500</td></tr>
+                        <tr><td>圍牆</td><td class="text-center text-slate-500">公尺</td><td class="text-right font-bold">1,800</td></tr>
+                    </tbody>
+                </table>
+                <p class="text-xs text-slate-400 mt-2">備註：本表計算標準每年定期檢討之。</p>
+            </div>
+        </div>
+
+        <!-- 即時摘要 -->
+        <div class="summary-bar mt-4 flex flex-col md:flex-row items-center justify-between gap-3">
+            <div class="text-sm space-y-1">
+                <div>
+                    <span class="text-blue-200 opacity-80" id="quick-label">全案酬金（100%）：</span>
+                    <span class="font-black text-lg ml-1 font-mono text-white" id="quick-rem">－</span>
+                </div>
+                <div id="quick-stage-row" class="hidden">
+                    <span class="text-blue-200 opacity-80" id="quick-stage-label">本次應繳（掛件70%）：</span>
+                    <span class="font-black text-xl ml-1 font-mono text-yellow-300" id="quick-stage-val">－</span>
+                    <span id="owner-badge" class="hidden ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">×0.9業主給付</span>
+                </div>
+            </div>
+            <button onclick="generatePDF()" id="btn-pdf"
+                class="w-full md:w-auto px-8 py-3 rounded-xl font-black shadow-lg transition-all flex items-center justify-center gap-2 text-white"
+                style="background:linear-gradient(135deg,#5b8dd9,#7eb8f0);box-shadow:0 4px 16px rgba(37,99,235,0.45);"
+                onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(37,99,235,0.55)'"
+                onmouseout="this.style.transform='';this.style.boxShadow='0 4px 16px rgba(37,99,235,0.45)'">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                產生繳費明細單 PDF
+            </button>
+        </div>
+    </div>
+
+    <!-- ════════ PDF 預覽區 ════════ -->
+    <div class="preview-scroll-container no-print rounded-2xl overflow-hidden" id="print-area">
+
+        <!-- 第一頁 -->
+        <div class="a4-page" id="page1">
+            <div class="receipt-border">
+
+                <!-- ── PDF 標頭：深色橫幅 + LOGO白底卡片 ── -->
+                <div style="display:flex;align-items:center;margin-bottom:16pt;background:linear-gradient(135deg,#2d5a9e 0%,#4a7fc1 60%,#7eb8f0 100%);border-radius:8pt;padding:12pt 16pt;gap:14pt;">
+                    <!-- LOGO 白底容器：放大填滿 -->
+                    <div style="background:white;border-radius:8pt;padding:8pt 10pt;flex-shrink:0;box-shadow:0 2px 10px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;">
+                        <img src="data:image/png;base64,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" style="width:90pt;height:auto;display:block;" alt="新竹縣建築師公會">
+                    </div>
+                    <!-- 標題文字 -->
+                    <div style="flex:1;text-align:center;">
+                        <div style="font-size:18pt;font-weight:900;letter-spacing:2pt;color:white;text-shadow:0 1px 4px rgba(0,0,0,0.3);">建照申請掛件費用明細單</div>
+                        <div style="height:1.5pt;background:rgba(255,255,255,0.35);margin:6pt 20pt;border-radius:1pt;"></div>
+                        <div style="font-size:8pt;font-weight:700;color:rgba(255,255,255,0.85);letter-spacing:1.5pt;">社團法人新竹縣建築師公會 ｜ FEE STATEMENT</div>
+                    </div>
+                </div>
+
+                <!-- 基本資訊 -->
+                <div style="border-top:1.5pt solid #2d5a9e;border-bottom:1.5pt solid #2d5a9e;padding:9pt 0;margin-bottom:4pt;">
+                    <table class="stable-table" style="font-size:10pt;">
+                        <tr>
+                            <td style="width:80pt;font-weight:bold;color:#000;">建築師身分</td>
+                            <td style="font-weight:900;color:#000;" id="p-archType">—</td>
+                            <td style="width:80pt;font-weight:bold;color:#000;text-align:right;">申請日期</td>
+                            <td style="font-weight:800;text-align:right;color:#000;" id="p-date">—</td>
+                        </tr>
+                        <tr style="height:5pt;"></tr>
+                        <tr id="p-row-homeCounty" style="display:none;">
+                            <td style="font-weight:bold;color:#000;">所屬建築師公會</td>
+                            <td colspan="3" style="font-weight:900;color:#1a8a7a;" id="p-homeCounty">—</td>
+                        </tr>
+                        <tr style="height:3pt;" id="p-row-homeCounty-gap" style="display:none;"></tr>
+                        <tr id="p-row-caseType">
+                            <td style="font-weight:bold;color:#000;">建築物類別</td>
+                            <td style="font-weight:900;color:#000;" id="p-caseType">—</td>
+                            <td style="font-weight:bold;color:#000;text-align:right;">樓地板面積</td>
+                            <td style="font-weight:800;text-align:right;color:#000;"><span id="p-area">—</span> ㎡</td>
+                        </tr>
+                        <tr style="height:5pt;" id="p-row-gap"></tr>
+                        <tr id="p-row-collab" style="display:none;">
+                            <td style="font-weight:bold;color:#000;">設計案類型</td>
+                            <td colspan="3" style="font-weight:900;color:#b45309;" id="p-collab-label">單獨設計案（100%）</td>
+                        </tr>
+                        <tr style="height:2pt;" id="p-row-collab-gap" style="display:none;"></tr>
+                        <tr id="p-row-stage">
+                            <td style="font-weight:bold;color:#000;">繳費階段</td>
+                            <td style="font-weight:900;color:#000;" id="p-stage">—</td>
+                            <td></td><td></td>
+                        </tr>
+                    </table>
+                    <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1pt solid #bfdbfe;border-radius:6pt;padding:7pt 14pt;margin-top:9pt;">
+                        <table class="stable-table">
+                            <tr>
+                                <td style="font-weight:800;font-size:10.5pt;color:#2d5a9e;">總法定工程造價</td>
+                                <td style="text-align:right;font-size:15pt;font-weight:900;font-family:'Courier New',monospace;color:#4a7fc1;">NT$ <span id="p-cost">0</span></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 本縣：酬金明細 -->
+                <div id="section-remuneration">
+                    <div class="bar-title">一、 建築師酬金累計計算（最低標費率）</div>
+                    <div class="section-content" style="background:#f8fbff;">
+                        <table class="stable-table" style="font-size:10pt;">
+                            <tr class="row-line"><td style="padding:5pt 0;color:#000;">300萬以下部分（<span id="p-rate1">5.5</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;color:#000;">$ <span id="p-v1">0</span></td></tr>
+                            <tr class="row-line"><td style="padding:5pt 0;color:#000;">300萬～1,500萬部分（<span id="p-rate2">4.5</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;color:#000;">$ <span id="p-v2">0</span></td></tr>
+                            <tr class="row-line"><td style="padding:5pt 0;color:#000;">1,500萬～6,000萬部分（<span id="p-rate3">4.0</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;color:#000;">$ <span id="p-v3">0</span></td></tr>
+                            <tr><td style="padding:5pt 0;color:#000;">6,000萬以上部分（<span id="p-rate4">3.5</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;color:#000;">$ <span id="p-v4">0</span></td></tr>
+                        </table>
+                        <div style="border:1.5pt solid #4a7fc1;border-radius:6pt;padding:9pt 14pt;margin-top:9pt;background:white;">
+                            <table class="stable-table">
+                                <tr>
+                                    <td style="font-weight:900;font-size:11pt;color:#2d5a9e;">全案法定酬金總額（100%）</td>
+                                    <td style="text-align:right;font-size:15pt;font-weight:900;font-family:'Courier New',monospace;color:#4a7fc1;">$ <span id="p-rem100">0</span></td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div id="p-ownerNote" style="display:none;margin-top:7pt;font-size:8pt;font-weight:800;color:#000;background:#fef2f2;border:1pt solid #fecaca;padding:5pt 10pt;border-radius:5pt;">
+                            ※ 業主另外給付：酬金 × 0.9 倍作為公會代收金額
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 外縣市費用 -->
+                <div id="section-outside" style="display:none;">
+                    <div class="bar-title" style="background:linear-gradient(90deg,#1a6b50,#1a8a7a);">一、 外縣市建築師應繳費用</div>
+                    <div class="section-content" style="background:#f0fdfa;">
+                        <table class="stable-table" style="font-size:10.5pt;">
+                            <tr class="row-line"><td style="padding:8pt 0;color:#000;"><div style="font-weight:800;">事業補助費</div><div style="font-size:8pt;color:#64748b;">總工程造價 × 4/10,000（四捨五入至個位）</div></td><td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-bizFee">0</span></td></tr>
+                            <tr class="row-line"><td style="padding:8pt 0;color:#000;"><div style="font-weight:800;">協審費</div><div style="font-size:8pt;color:#64748b;">總工程造價 × 1/10,000（四捨五入至個位）</div></td><td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-reviewFeeOut">0</span></td></tr>
+                            <tr><td style="padding:8pt 0;color:#000;"><div style="font-weight:800;">行政作業費</div><div style="font-size:8pt;color:#64748b;" id="p-adminOutNote"></div></td><td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-adminOut">0</span></td></tr>
+                        </table>
+                        <div style="background:linear-gradient(90deg,#1a6b50,#1a8a7a);color:white;border-radius:8pt;padding:11pt 14pt;margin-top:10pt;display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-weight:900;font-size:12pt;">合計應繳金額</span>
+                            <span style="font-size:20pt;font-weight:900;font-family:'Courier New',monospace;">NT$ <span id="p-outsideTotal">0</span></span>
+                        </div>
+                    </div>
+                    <div class="bar-title" style="background:linear-gradient(90deg,#1a6b50,#1a8a7a);">二、 匯款帳戶資訊</div>
+                    <div class="section-content" style="background:#f0fdfa;">
+                        <div style="font-size:11pt;font-weight:800;color:#000;margin-bottom:10pt;text-align:center;">國泰世華銀行（013）新竹分行 ｜ 戶名：社團法人新竹縣建築師公會</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10pt;font-family:'Courier New',monospace;">
+                            <div style="background:#f0fdfa;border:1.5pt solid #99f6e4;padding:10pt;border-radius:6pt;">
+                                <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#1a8a7a;">事業補助費</div>
+                                <div style="font-weight:900;font-size:13pt;color:#000;">0400350-11228</div>
+                            </div>
+                            <div style="background:#fefce8;border:1.5pt solid #fde68a;padding:10pt;border-radius:6pt;">
+                                <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#a0520f;">協審費</div>
+                                <div style="font-weight:900;font-size:13pt;color:#000;">0400350-55225</div>
+                            </div>
+                            <div style="background:#faf5ff;border:1.5pt solid #d8b4fe;padding:10pt;border-radius:6pt;">
+                                <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#6b21a8;">行政作業費</div>
+                                <div style="font-weight:900;font-size:13pt;color:#000;">0400350-55217</div>
+                            </div>
+                        </div>
+                        <p style="font-size:10pt;color:#dc2626;font-weight:900;margin-top:10pt;">※ 若開立支票，須分別開立。</p>
+                    </div>
+                </div>
+                <table class="stable-table" style="margin-top:10pt;font-size:8pt;color:#94a3b8;font-weight:bold;">
+                    <tr>
+                        <td>列印日期：<span id="p-timestamp2">—</span></td>
+                        <td style="text-align:right;">新竹縣建照掛件費用計算系統 V3.1</td>
+                    </tr>
+                </table>
+
+                <div style="text-align:center;color:#94a3b8;font-size:8pt;padding-top:8pt;margin-top:auto;" id="page1-footer">（第一頁，續接第二頁）</div>
+            </div>
+        </div>
+
+        <!-- 第二頁（本縣） -->
+        <div class="a4-page" id="page2">
+            <div class="receipt-border">
+
+                <div class="bar-title" style="margin-top:0;" id="p-hangTitle">二、 本次應繳款項</div>
+                <div class="section-content" style="background:#f8fbff;">
+                    <table class="stable-table" style="font-size:10.5pt;">
+                        <tr class="row-line" id="row-designFee">
+                            <td style="padding:8pt 0;">
+                                <div style="font-weight:800;color:#000;" id="p-designFeeLabel">設計費酬金</div>
+                                <div style="font-size:8pt;color:#64748b;" id="p-designFee-note"></div>
+                            </td>
+                            <td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-designFee">0</span></td>
+                        </tr>
+                        <tr class="row-line" id="row-bizFeeLocal">
+                            <td style="padding:8pt 0;">
+                                <div style="font-weight:800;color:#000;">事業費</div>
+                                <div style="font-size:8pt;color:#64748b;">總工程造價 × 4/10,000（四捨五入至個位）</div>
+                            </td>
+                            <td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-bizFeeLocal">0</span></td>
+                        </tr>
+                        <tr class="row-line" id="row-reviewFee">
+                            <td style="padding:8pt 0;">
+                                <div style="font-weight:800;color:#000;" id="p-reviewFeeLabel">協檢費</div>
+                                <div style="font-size:8pt;color:#64748b;" id="p-reviewFee-note"></div>
+                            </td>
+                            <td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-reviewFee">0</span></td>
+                        </tr>
+                        <tr id="row-admin">
+                            <td style="padding:8pt 0;">
+                                <div style="font-weight:800;color:#000;">行政作業費</div>
+                                <div style="font-size:8pt;color:#64748b;" id="p-admin-note"></div>
+                            </td>
+                            <td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-admin">0</span></td>
+                        </tr>
+                    </table>
+                    <div id="p-total-bar" style="border-radius:8pt;padding:11pt 14pt;margin-top:11pt;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#2d5a9e,#4a7fc1);color:white;">
+                        <span style="font-weight:900;font-size:12pt;" id="p-total-label">本次應繳小計</span>
+                        <span style="font-size:20pt;font-weight:900;font-family:'Courier New',monospace;">NT$ <span id="p-stageTotal">0</span></span>
+                    </div>
+                </div>
+
+                <!-- 匯款帳戶 -->
+                <div style="margin-top:auto;border:1.5pt solid #2d5a9e;border-radius:8pt;padding:14pt 16pt;">
+                    <div style="text-align:center;font-weight:900;font-size:12pt;border-bottom:1pt solid #cbd5e1;padding-bottom:7pt;margin-bottom:9pt;color:#2d5a9e;">
+                        國泰世華銀行（013）新竹分行 ｜ 戶名：社團法人新竹縣建築師公會
+                    </div>
+                    <div id="bank-local" style="display:grid;grid-template-columns:1fr 1fr;gap:9pt;font-family:'Courier New',monospace;">
+                        <div style="background:#eff6ff;padding:7pt;border-radius:5pt;border:1pt solid #bfdbfe;">
+                            <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#4a7fc1;" id="bank-design-label">掛件70%設計費</div>
+                            <div style="font-weight:900;font-size:13pt;color:#000;" id="bank-design-acc">0400350-22211</div>
+                        </div>
+                        <div style="background:#ecfdf5;padding:7pt;border-radius:5pt;border:1pt solid #a7f3d0;">
+                            <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#1a8a7a;">事業費</div>
+                            <div style="font-weight:900;font-size:13pt;color:#000;">0400350-11228</div>
+                        </div>
+                        <div style="background:#fefce8;padding:7pt;border-radius:5pt;border:1pt solid #fde68a;">
+                            <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#a0520f;">協檢費</div>
+                            <div style="font-weight:900;font-size:13pt;color:#000;">0400350-55225</div>
+                        </div>
+                        <div style="background:#faf5ff;padding:7pt;border-radius:5pt;border:1pt solid #d8b4fe;">
+                            <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#6b21a8;">行政作業費</div>
+                            <div style="font-weight:900;font-size:13pt;color:#000;">0400350-55217</div>
+                        </div>
+                        <div style="background:#f0fdf4;padding:7pt;border-radius:5pt;border:1pt solid #bbf7d0;" id="bank-extra-box">
+                            <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#1a6b50;" id="bank-extra-label">領照30%設計費</div>
+                            <div style="font-weight:900;font-size:13pt;color:#000;" id="bank-extra-acc">0400350-22220</div>
+                        </div>
+                    </div>
+                </div>
+
+                <p style="font-size:10pt;color:#dc2626;font-weight:900;margin-top:10pt;">※ 若開立支票，須分別開立。</p>
+                <table class="stable-table" style="margin-top:6pt;font-size:7pt;color:#94a3b8;font-weight:bold;">
+                    <tr>
+                        <td>列印日期：<span id="p-timestamp">—</span></td>
+                        <td style="text-align:right;">新竹縣建照掛件費用計算系統 V3.1</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- 外縣市匯款頁 -->
+        <div class="a4-page" id="page-outside-bank" style="display:none;">
+            <div class="receipt-border">
+                <div class="bar-title" style="margin-top:0;background:linear-gradient(90deg,#1a6b50,#1a8a7a);">二、 匯款帳戶資訊</div>
+                <div class="section-content" style="background:#f0fdfa;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12pt;font-family:'Courier New',monospace;margin-top:10pt;">
+                        <div style="background:#f0fdfa;border:1.5pt solid #99f6e4;padding:12pt;border-radius:6pt;">
+                            <div style="font-weight:800;font-size:12pt;margin-bottom:5pt;color:#1a8a7a;">事業補助費</div>
+                            <div style="font-weight:900;font-size:14pt;color:#000;">0400350-11228</div>
+                        </div>
+                        <div style="background:#fefce8;border:1.5pt solid #fde68a;padding:12pt;border-radius:6pt;">
+                            <div style="font-weight:800;font-size:12pt;margin-bottom:5pt;color:#a0520f;">協審費</div>
+                            <div style="font-weight:900;font-size:14pt;color:#000;">0400350-55225</div>
+                        </div>
+                        <div style="background:#faf5ff;border:1.5pt solid #d8b4fe;padding:12pt;border-radius:6pt;">
+                            <div style="font-weight:800;font-size:12pt;margin-bottom:5pt;color:#6b21a8;">行政作業費</div>
+                            <div style="font-weight:900;font-size:14pt;color:#000;">0400350-55217</div>
+                        </div>
+                    </div>
+                    <p style="font-size:11pt;color:#dc2626;font-weight:900;margin-top:12pt;">※ 若開立支票，須分別開立。</p>
+                </div>
+                <table class="stable-table" style="margin-top:10pt;font-size:8pt;color:#94a3b8;font-weight:bold;">
+                    <tr>
+                        <td>列印日期：<span id="p-timestamp3">—</span></td>
+                        <td style="text-align:right;">新竹縣建照掛件費用計算系統 V3.1</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+    </div><!-- end print-area -->
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  狀態
+// ═══════════════════════════════════════════
+let archType = 'local';
+let payStage = '70';
+
+const REM_RATES = {
+    general: [5.5, 4.5, 4.0, 3.5],
+    public:  [6.0, 5.0, 4.5, 4.0],
+    special: [7.0, 6.0, 5.5, 5.0]
+};
+const CASE_NAMES  = { general:'一般建築', public:'公共及高層建築', special:'特殊建築' };
+const STAGE_NAMES = { '70':'掛件繳納 (70%)', '30':'領照繳納 (30%)', '100':'一次繳清 (100%)' };
+
+// ═══════════════════════════════════════════
+//  數字輸入
+// ═══════════════════════════════════════════
+const rawValues = { area: '', cost: '' };
+
+function handleFocus(id) {
+    const el = document.getElementById('input-' + id);
+    el.classList.remove('done');
+    el.select();
+}
+
+function handleInput(id) {
+    const el  = document.getElementById('input-' + id);
+    const pos = el.selectionStart;
+    const old = el.value;
+
+    let raw = old.replace(/[^\d.]/g, '');
+    if (id === 'cost') raw = raw.replace(/\./g, '');
+
+    const dotIdx = raw.indexOf('.');
+    if (dotIdx !== -1) raw = raw.slice(0, dotIdx + 1) + raw.slice(dotIdx + 1).replace(/\./g, '');
+
+    rawValues[id] = raw;
+
+    const parts = raw.split('.');
+    const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const formatted = parts.length > 1 ? intPart + '.' + parts[1] : intPart;
+
+    const addedCommas = (formatted.match(/,/g) || []).length - (old.match(/,/g) || []).length;
+    const newPos = Math.max(0, pos + addedCommas);
+
+    el.value = formatted;
+    try { el.setSelectionRange(newPos, newPos); } catch(e) {}
+
+    el.classList.remove('done');
+    calculateAll();
+    if (id === 'area') updateRefCost();
+}
+
+function handleBlur(id) {
+    const el  = document.getElementById('input-' + id);
+    const raw = rawValues[id];
+    if (!raw) {
+        el.value = '';
+        el.classList.remove('done');
+    } else {
+        const num = parseFloat(raw);
+        if (id === 'area') {
+            const parts = raw.split('.');
+            const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            el.value = parts.length > 1 ? intPart + '.' + (parts[1] || '00').padEnd(2,'0').slice(0,2) : intPart;
+        } else {
+            el.value = Math.round(num).toLocaleString('zh-TW');
+        }
+        el.classList.add('done');
+    }
+}
+
+function getNumVal(id) {
+    return parseFloat(rawValues[id]) || 0;
+}
+
+// ═══════════════════════════════════════════
+//  繳費階段
+// ═══════════════════════════════════════════
+function setStage(s) {
+    payStage = s;
+    document.getElementById('btn-70').className  = 'stage-btn' + (s==='70'  ? ' active-70'  : '');
+    document.getElementById('btn-30').className  = 'stage-btn' + (s==='30'  ? ' active-30'  : '');
+    document.getElementById('btn-100').className = 'stage-btn' + (s==='100' ? ' active-100' : '');
+    calculateAll();
+}
+
+// ═══════════════════════════════════════════
+//  身分選擇
+// ═══════════════════════════════════════════
+function selectType(type) {
+    archType = type;
+    const isLocal = type === 'local';
+
+    document.getElementById('card-local').className   = 'id-card' + (isLocal ? ' selected-local'   : '');
+    document.getElementById('card-outside').className = 'id-card' + (!isLocal ? ' selected-outside' : '');
+    document.getElementById('radio-local').className   = 'w-5 h-5 rounded-full border-2 flex items-center justify-center mt-1 flex-shrink-0 ' + (isLocal ? 'border-blue-600' : 'border-slate-400');
+    document.getElementById('radio-local').innerHTML   = isLocal ? '<div class="w-2.5 h-2.5 rounded-full bg-blue-600"></div>' : '<div class="w-2.5 h-2.5 rounded-full bg-transparent"></div>';
+    document.getElementById('radio-outside').className = 'w-5 h-5 rounded-full border-2 flex items-center justify-center mt-1 flex-shrink-0 ' + (!isLocal ? 'border-teal-600' : 'border-slate-400');
+    document.getElementById('radio-outside').innerHTML = !isLocal ? '<div class="w-2.5 h-2.5 rounded-full bg-teal-600"></div>' : '<div class="w-2.5 h-2.5 rounded-full bg-transparent"></div>';
+
+    ['block-caseType','block-area'].forEach(id => {
+        document.getElementById(id).style.display = '';
+    });
+    ['block-stage','block-collab','block-structure','block-ownerPay','block-refTable'].forEach(id => {
+        document.getElementById(id).style.display = isLocal ? '' : 'none';
+    });
+
+    document.getElementById('layout-grid').className = isLocal
+        ? 'grid grid-cols-1 lg:grid-cols-2 gap-6'
+        : 'grid grid-cols-1 gap-6';
+
+    // 外縣市公會選擇器
+    document.getElementById('block-homeCounty').style.display = isLocal ? 'none' : '';
+    // 切換身分時重置合作比例
+    if (isLocal) {
+        const soloBtn = document.getElementById('collab-solo');
+        if (soloBtn) { soloBtn.checked = true; handleCollabChange(); }
+    }
+    if (isLocal) {
+        const hintEl = document.getElementById('county-rate-hint');
+        if (hintEl) hintEl.style.display = 'none';
+    }
+
+    calculateAll();
+}
+
+// ═══════════════════════════════════════════
+//  合作設計案 toggle
+// ═══════════════════════════════════════════
+function handleCollabChange() {
+    const isJoint = document.getElementById('collab-joint').checked;
+    const pctBlock = document.getElementById('block-collab-pct');
+    if (pctBlock) pctBlock.style.display = isJoint ? '' : 'none';
+    calculateAll();
+}
+
+// ═══════════════════════════════════════════
+//  法定造價參考提示
+// ═══════════════════════════════════════════
+function updateRefCost() {
+    const hint = document.getElementById('refCostHint');
+    // 外縣市建築師不需要顯示參考法定工程造價
+    if (archType !== 'local') { hint.textContent = ''; return; }
+    const unitPrice = parseInt(document.getElementById('structureType').value) || 0;
+    const area = getNumVal('area');
+    if (area > 0 && unitPrice > 0) {
+        hint.textContent = `參考法定工程造價：${fmt(area,2)} ㎡ × ${fmt(unitPrice)} = NT$ ${fmt(area*unitPrice)} 元`;
+        hint.className = 'text-xs text-blue-600 font-bold mt-1';
+    } else {
+        hint.textContent = '';
+    }
+}
+
+// ═══════════════════════════════════════════
+//  工具函式
+// ═══════════════════════════════════════════
+function fmt(n, d=0) { return n.toLocaleString('zh-TW', {minimumFractionDigits:d, maximumFractionDigits:d}); }
+function roundTo(n, u) { return Math.round(n/u)*u; }
+function calcAdmin(cost) {
+    if (cost<=0)        return 0;
+    if (cost<=3000000)  return 500;
+    if (cost<=15000000) return 1000;
+    if (cost<=60000000) return 1500;
+    return 2000;
+}
+function adminNote(cost) {
+    if (cost<=0)        return '';
+    if (cost<=3000000)  return '0～300萬：500元';
+    if (cost<=15000000) return '300萬～1,500萬：1,000元';
+    if (cost<=60000000) return '1,500萬～6,000萬：1,500元';
+    return '6,000萬以上：2,000元';
+}
+
+// ═══════════════════════════════════════════
+//  外縣市協檢費費率（平等互惠原則）
+// ═══════════════════════════════════════════
+// 新竹縣基本費率（6/10,000，上限5萬，下限2千，取百位）
+function calcHsinchuReviewFee(cost) {
+    if (cost <= 0) return 0;
+    let raw = cost <= 50000000
+        ? cost * 0.0006
+        : 50000000 * 0.0006 + (cost - 50000000) * 0.0002;
+    return roundTo(Math.max(2000, Math.min(50000, raw)), 100);
+}
+
+// 各縣市協檢費費率
+function calcCountyReviewFee(cost, county) {
+    if (cost <= 0) return 0;
+    switch (county) {
+        case 'taoyuan': {
+            // 桃園市：≤5000萬 6/10,000；>5000萬 2/10,000+30,000；min 4,000；max 80,000；取百位
+            let fee = cost <= 50000000 ? cost * 0.0006 : cost * 0.0002 + 30000;
+            return roundTo(Math.max(4000, Math.min(80000, fee)), 100);
+        }
+        case 'taipei': {
+            // 臺北市：≤5000萬 6/10,000；>5000萬 累計計算；min 30,000；max 100,000；取百位
+            let fee = cost <= 50000000
+                ? cost * 0.0006
+                : 50000000 * 0.0006 + (cost - 50000000) * 0.0002;
+            return roundTo(Math.max(30000, Math.min(100000, fee)), 100);
+        }
+        case 'newTaipei': {
+            // 新北市加強技術審查：≤1000萬 2萬；1000~5000萬 3萬；>5000萬 3萬+(超額×2/10,000)；max 20萬
+            if (cost <= 10000000) return 20000;
+            if (cost <= 50000000) return 30000;
+            return Math.min(200000, Math.round(30000 + (cost - 50000000) * 0.0002));
+        }
+        default: // 新竹縣或其他縣市 → 新竹縣費率
+            return calcHsinchuReviewFee(cost);
+    }
+}
+
+const COUNTY_NAMES = {
+    hsinchu: '新竹縣建築師公會',
+    taoyuan: '桃園市建築師公會',
+    taipei:  '臺北市建築師公會',
+    newTaipei: '新北市建築師公會',
+    other:   '其他縣市公會'
+};
+
+// ═══════════════════════════════════════════
+//  主計算
+// ═══════════════════════════════════════════
+function calculateAll() {
+    const cost    = getNumVal('cost');
+    const area    = getNumVal('area');
+    const type    = document.getElementById('caseType').value;
+    const isOwner = document.getElementById('isOwnerPay').checked;
+    const mult    = isOwner ? 0.9 : 1.0;
+    const now     = new Date();
+
+    document.getElementById('p-date').innerText      = now.toLocaleDateString('zh-TW');
+    document.getElementById('p-cost').innerText      = fmt(cost);
+    document.getElementById('p-archType').innerText  = archType==='local' ? '新竹縣建築師公會會員' : '外縣市建築師';
+
+    if (archType === 'local') {
+        document.getElementById('page1-footer').style.display     = '';
+        document.getElementById('page2').style.display            = '';
+        document.getElementById('page-outside-bank').style.display= 'none';
+        document.getElementById('section-remuneration').style.display = '';
+        document.getElementById('section-outside').style.display  = 'none';
+        document.getElementById('p-row-caseType').style.display   = '';
+        document.getElementById('p-row-gap').style.display        = '';
+        document.getElementById('p-row-stage').style.display      = '';
+        document.getElementById('bank-local').style.display       = 'grid';
+        document.getElementById('row-designFee').style.display    = '';
+        document.getElementById('row-bizFeeLocal').style.display  = '';
+        document.getElementById('row-reviewFee').style.display    = '';
+        document.getElementById('row-admin').style.display        = '';
+        // 強制隱藏「所屬建築師公會」列（切換回本縣時重置狀態）
+        const _rhc = document.getElementById('p-row-homeCounty');
+        const _rhcg = document.getElementById('p-row-homeCounty-gap');
+        if (_rhc)  _rhc.style.display  = 'none';
+        if (_rhcg) _rhcg.style.display = 'none';
+
+        document.getElementById('p-caseType').innerText = CASE_NAMES[type];
+        document.getElementById('p-area').innerText     = area>0 ? fmt(area,2) : '—';
+        document.getElementById('p-stage').innerText    = STAGE_NAMES[payStage];
+
+        const rates = REM_RATES[type];
+        let v1=0,v2=0,v3=0,v4=0;
+        if (cost>0) {
+            v1 = Math.round(Math.min(cost,3000000)*rates[0]/100);
+            if (cost>3000000)  v2 = Math.round((Math.min(cost,15000000)-3000000)*rates[1]/100);
+            if (cost>15000000) v3 = Math.round((Math.min(cost,60000000)-15000000)*rates[2]/100);
+            if (cost>60000000) v4 = Math.round((cost-60000000)*rates[3]/100);
+        }
+        const rem100 = v1+v2+v3+v4;
+        ['rate1','rate2','rate3','rate4'].forEach((id,i)=>{ document.getElementById('p-'+id).innerText=rates[i]; });
+        ['v1','v2','v3','v4'].forEach((id,i)=>{ document.getElementById('p-'+id).innerText=fmt([v1,v2,v3,v4][i]); });
+        document.getElementById('p-rem100').innerText        = fmt(rem100);
+        document.getElementById('p-ownerNote').style.display= isOwner?'':' none';
+
+        const bizFeeLocal = (cost>0 && payStage!=='30') ? Math.round(cost*4/10000) : 0;
+
+        let reviewFee = 0;
+        if (cost>0) {
+            let raw = cost<=50000000 ? cost*0.0006 : 50000000*0.0006+(cost-50000000)*0.0002;
+            reviewFee = roundTo(Math.max(2000,Math.min(50000,raw)),100);
+        }
+        const admin = calcAdmin(cost);
+
+        const pct = payStage==='70'?0.7:payStage==='30'?0.3:1.0;
+        // 合作設計案比例
+        const isJoint = document.getElementById('collab-joint').checked;
+        const collabPctVal = isJoint ? Math.max(1, Math.min(99, parseFloat(document.getElementById('collabPct').value)||50)) : 100;
+        const collabRatio = collabPctVal / 100;
+        const designFee = Math.round(rem100*pct*mult*collabRatio);
+        const incOther  = payStage!=='30';
+        const stageBizFeeLocal = incOther ? bizFeeLocal : 0;
+        const stageReview = incOther?reviewFee:0;
+        const stageAdmin  = incOther?admin:0;
+        const stageTotal  = designFee+stageBizFeeLocal+stageReview+stageAdmin;
+
+        const dlabel = { '70':'設計費酬金（70%）','30':'設計費酬金（30%）','100':'設計費酬金（100%）' };
+        document.getElementById('p-designFeeLabel').innerText = dlabel[payStage];
+        document.getElementById('p-designFee').innerText      = fmt(designFee);
+        const collabSuffix = isJoint ? ` × ${collabPctVal}%（合作設計）` : '';
+        document.getElementById('p-designFee-note').innerText = `全案酬金 ${fmt(rem100)} × ${payStage}%${isOwner?' × 0.9（業主給付）':''}${collabSuffix}`;
+        // PDF 合作案列
+        const rowCollab = document.getElementById('p-row-collab');
+        const rowCollabGap = document.getElementById('p-row-collab-gap');
+        const pCollabLabel = document.getElementById('p-collab-label');
+        if (rowCollab) {
+            rowCollab.style.display = isJoint ? '' : 'none';
+            if (rowCollabGap) rowCollabGap.style.display = isJoint ? '' : 'none';
+            if (pCollabLabel) pCollabLabel.innerText = isJoint ? `合作設計案（本案 ${collabPctVal}%）` : '';
+        }
+        document.getElementById('p-bizFeeLocal').innerText    = fmt(stageBizFeeLocal);
+        document.getElementById('row-bizFeeLocal').style.display = incOther ? '' : 'none';
+        document.getElementById('p-reviewFee').innerText      = fmt(stageReview);
+        document.getElementById('p-reviewFee-note').innerText = incOther
+            ? (cost<=50000000?'造價×6/10,000（下限2,000上限50,000，四捨五入至百位）':'前5,000萬×6/10,000+超額×2/10,000（上限50,000，四捨五入至百位）')
+            : '（領照階段不收）';
+        document.getElementById('p-admin').innerText          = fmt(stageAdmin);
+        document.getElementById('p-admin-note').innerText     = incOther?adminNote(cost):'（領照階段不收）';
+        document.getElementById('p-stageTotal').innerText     = fmt(stageTotal);
+
+        const titleMap = {'70':'二、 掛件時應繳款項（70%）','30':'二、 領照時應繳款項（30%）','100':'二、 本次應繳款項（一次繳清 100%）'};
+        document.getElementById('p-hangTitle').innerText    = titleMap[payStage];
+        document.getElementById('p-total-label').innerText  = payStage==='30'?'領照應繳小計':'掛件應繳小計';
+
+        const barBg = payStage==='30'
+            ? 'linear-gradient(135deg,#064e3b,#1a6b50)'
+            : 'linear-gradient(135deg,#2d5a9e,#4a7fc1)';
+        document.getElementById('p-total-bar').style.background = barBg;
+
+        const accMap   = {'70':'0400350-22211','30':'0400350-22220','100':'0400350-22211'};
+        const lblMap   = {'70':'掛件70%設計費','30':'領照30%設計費','100':'設計費（全額）'};
+        document.getElementById('bank-design-label').innerText = lblMap[payStage];
+        document.getElementById('bank-design-acc').innerText   = accMap[payStage];
+        if (payStage==='100') {
+            document.getElementById('bank-extra-box').style.display='none';
+        } else {
+            document.getElementById('bank-extra-box').style.display='';
+            document.getElementById('bank-extra-label').innerText = payStage==='70'?'領照30%設計費（備）':'掛件70%設計費（備）';
+            document.getElementById('bank-extra-acc').innerText   = payStage==='70'?'0400350-22220':'0400350-22211';
+        }
+
+        document.getElementById('quick-label').innerText      = '全案酬金（100%）：';
+        document.getElementById('quick-rem').innerText        = `NT$ ${fmt(rem100)}`;
+        document.getElementById('quick-stage-row').className  = '';
+        document.getElementById('quick-stage-label').innerText= `本次應繳（${STAGE_NAMES[payStage]}）：`;
+        document.getElementById('quick-stage-val').innerText  = `NT$ ${fmt(stageTotal)}`;
+        document.getElementById('owner-badge').className      = isOwner?'ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold':'hidden';
+
+    } else {
+        document.getElementById('page1-footer').style.display      = 'none';
+        document.getElementById('page2').style.display             = 'none';
+        document.getElementById('page-outside-bank').style.display = 'none';
+        document.getElementById('section-remuneration').style.display = 'none';
+        document.getElementById('section-outside').style.display   = '';
+        document.getElementById('p-row-caseType').style.display    = '';
+        document.getElementById('p-row-gap').style.display         = '';
+        document.getElementById('p-row-stage').style.display       = 'none';
+        document.getElementById('p-caseType').innerText = CASE_NAMES[type];
+        document.getElementById('p-area').innerText     = area>0 ? fmt(area,2) : '—';
+
+        const county       = document.getElementById('homeCounty').value;
+        const bizFee       = cost>0 ? Math.round(cost*4/10000) : 0;
+
+        // 協檢費：新竹縣基本費率 vs 所屬公會費率，取較高值（平等互惠原則）
+        const hsinchuReview = calcHsinchuReviewFee(cost);
+        const countyReview  = calcCountyReviewFee(cost, county);
+        const reviewFeeOut  = Math.max(hsinchuReview, countyReview);
+        const isHigherCounty = countyReview > hsinchuReview && county !== 'hsinchu' && county !== 'other';
+
+        const admin        = calcAdmin(cost);
+        const outsideTotal = bizFee+reviewFeeOut+admin;
+
+        document.getElementById('p-bizFee').innerText        = fmt(bizFee);
+        document.getElementById('p-reviewFeeOut').innerText  = fmt(reviewFeeOut);
+        document.getElementById('p-adminOut').innerText      = fmt(admin);
+        document.getElementById('p-adminOutNote').innerText  = adminNote(cost);
+        document.getElementById('p-outsideTotal').innerText  = fmt(outsideTotal);
+
+        // 協檢費費率提示（網頁顯示）
+        const hintEl = document.getElementById('county-rate-hint');
+        if (hintEl) {
+            if (cost > 0) {
+                hintEl.style.display = '';
+                const cName = COUNTY_NAMES[county] || '其他縣市';
+                if (isHigherCounty) {
+                    hintEl.innerHTML = `✦ 平等互惠：新竹縣 <b>$${fmt(hsinchuReview)}</b> ＜ ${cName} <b>$${fmt(countyReview)}</b><br>→ 依互惠原則採用 <span style="color:#c07010">${cName}</span> 較高費率`;
+                    hintEl.className = 'text-xs mt-2 p-2 rounded-lg border font-bold bg-amber-50 border-amber-300 text-amber-800';
+                } else {
+                    hintEl.innerHTML = `✦ 新竹縣費率 ($${fmt(hsinchuReview)}) ${county==='hsinchu'||county==='other' ? '' : '≥ '+cName+' ($'+fmt(countyReview)+')'}<br>→ 採用新竹縣費率`;
+                    hintEl.className = 'text-xs mt-2 p-2 rounded-lg border font-bold bg-slate-50 border-slate-300 text-slate-600';
+                }
+            } else {
+                hintEl.style.display = 'none';
+            }
+        }
+
+        // PDF：協檢費費率說明
+        const reviewNoteEl = document.getElementById('p-reviewFeeOutNote');
+        if (reviewNoteEl) {
+            const cName = COUNTY_NAMES[county] || '其他縣市';
+            if (isHigherCounty) {
+                reviewNoteEl.innerHTML = `依平等互惠原則：採用 ${cName} 費率（新竹縣 $${fmt(hsinchuReview)} ＜ ${cName} $${fmt(countyReview)})`;
+            } else {
+                reviewNoteEl.textContent = `依新竹縣費率：造價×6/10,000（下限2,000上限50,000，取百位）`;
+            }
+        }
+
+        // PDF：所屬公會顯示
+        const countyNameEl = document.getElementById('p-homeCounty');
+        if (countyNameEl) countyNameEl.textContent = COUNTY_NAMES[county] || '—';
+
+        // PDF 所屬公會行顯示控制
+        const rowHomeCounty = document.getElementById('p-row-homeCounty');
+        const rowHomeCountyGap = document.getElementById('p-row-homeCounty-gap');
+        const showCountyRow = archType !== 'local' && (county !== 'hsinchu' && county !== 'other');
+        if (rowHomeCounty) rowHomeCounty.style.display = showCountyRow ? '' : 'none';
+        if (rowHomeCountyGap) rowHomeCountyGap.style.display = showCountyRow ? '' : 'none';
+
+        document.getElementById('quick-label').innerText      = '合計應繳：';
+        document.getElementById('quick-rem').innerText        = `NT$ ${fmt(outsideTotal)}`;
+        document.getElementById('quick-stage-row').className  = 'hidden';
+        document.getElementById('owner-badge').className      = 'hidden';
+    }
+
+    const ts = now.toLocaleDateString('zh-TW');
+    document.getElementById('p-timestamp').innerText  = ts;
+    const ts2el = document.getElementById('p-timestamp2');
+    if (ts2el) ts2el.innerText = ts;
+}
+
+// ═══════════════════════════════════════════
+//  PDF 產生
+// ═══════════════════════════════════════════
+function generatePDF() {
+    const btn = document.getElementById('btn-pdf');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="animate-pulse">⌛ 處理中...</span>';
+
+    const el = document.getElementById('print-area');
+    el.classList.add('pdf-export-mode');
+
+    // 只 capture 可見頁，每頁獨立截圖組成 PDF，根本解決空白頁問題
+    const visiblePages = Array.from(document.querySelectorAll('.a4-page'))
+        .filter(p => p.style.display !== 'none');
+
+    const W = 273, H = 386;
+    const filename = `新竹縣建照掛件費用明細_${new Date().toLocaleDateString('zh-TW').replace(/\//g,'-')}.pdf`;
+    const { jsPDF } = window.jspdf;
+
+    setTimeout(async () => {
+        try {
+            const doc = new jsPDF({ unit: 'mm', format: [W, H], orientation: 'portrait' });
+
+            for (let i = 0; i < visiblePages.length; i++) {
+                const canvas = await html2canvas(visiblePages[i], {
+                    scale: 3,
+                    useCORS: true,
+                    letterRendering: true,
+                    scrollY: 0,
+                    scrollX: 0,
+                    backgroundColor: '#ffffff'
+                });
+                const imgData = canvas.toDataURL('image/jpeg', 1.0);
+                if (i > 0) doc.addPage([W, H]);
+                doc.addImage(imgData, 'JPEG', 0, 0, W, H);
+            }
+
+            doc.save(filename);
+        } catch(e) {
+            console.error('PDF error:', e);
+            btn.innerText = '產製失敗，請重試';
+        } finally {
+            el.classList.remove('pdf-export-mode');
+            btn.disabled = false;
+            btn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg> 產生繳費明細單 PDF`;
+        }
+    }, 300);
+}
+
+// ═══════════════════════════════════════════
+//  初始化
+// ═══════════════════════════════════════════
+window.onload = () => calculateAll();
+</script>
+</body>
+</html>
