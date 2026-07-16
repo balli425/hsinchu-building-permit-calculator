@@ -809,7 +809,9 @@ function updateRefCost() {
     const area = getNumVal('area');
     if (area > 0 && unitPrice > 0) {
         hint.textContent = `參考法定工程造價：${fmt(area,2)} ㎡ × ${fmt(unitPrice)} = NT$ ${fmt(area*unitPrice)} 元`;
-        hint.className = 'text-xs text-blue-600 font-bold mt-1';
+        hint.className = 'font-bold mt-1';
+        hint.style.fontSize = '1.5rem';
+        hint.style.color = '#dc2626';
     } else {
         hint.textContent = '';
     }
