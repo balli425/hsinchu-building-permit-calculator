@@ -1,220 +1,892 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>新竹縣建照申請掛件費用計算系統 V3.1</title>
+    <title>新竹縣建照申請掛件費用計算系統 V3.4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;600;700;800;900&family=Noto+Serif+TC:wght@500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Noto Sans TC', sans-serif; background: linear-gradient(135deg, #e8edf5 0%, #f1f5f9 60%, #e8f0fe 100%); min-height: 100vh; }
+/* ════════════════════════════════════════════════
+   設計系統 — 建築圖紙風格 (Architectural Drawing Sheet)
+   參考：AutoCAD title block, Swiss typographic style,
+         Bauhaus, drafting paper conventions.
+═════════════════════════════════════════════════ */
+:root {
+    --paper: #f4eedf;
+    --paper-2: #ebe3d0;
+    --paper-3: #e0d6bd;
+    --ink: #1a1d24;
+    --ink-2: #2c313d;
+    --ink-mute: #6e6856;
+    --ink-faint: #a39c87;
+    --line: #beb39a;
+    --line-soft: #d4cab1;
+    --line-faint: #e6dfc9;
+    --blueprint: #1d3557;
+    --blueprint-2: #2a4a7a;
+    --red: #b03028;
+    --red-soft: #d4574c;
+    --highlight: #d4a017;
+    --grid: rgba(160, 145, 100, 0.18);
+}
 
-        /* ── 身分卡片 ── */
-        .id-card {
-            border: 2.5px solid #e2e8f0; border-radius: 18px; padding: 22px;
-            cursor: pointer; transition: all 0.2s; background: white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-        .id-card:hover { border-color: #3b82f6; box-shadow: 0 4px 20px rgba(59,130,246,0.15); transform: translateY(-1px); }
-        .id-card.selected-local   { border-color: #4a7fc1; background: linear-gradient(135deg, #eff6ff, #dbeafe); box-shadow: 0 4px 20px rgba(29,78,216,0.18); }
-        .id-card.selected-outside { border-color: #1a8a7a; background: linear-gradient(135deg, #f0fdfa, #ccfbf1); box-shadow: 0 4px 20px rgba(15,118,110,0.18); }
+* {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    box-sizing: border-box;
+}
 
-        /* ── 繳費階段按鈕 ── */
-        .stage-btn {
-            flex: 1; padding: 10px 4px; border: 2px solid #e2e8f0;
-            border-radius: 12px; font-weight: 900; font-size: 14px;
-            cursor: pointer; transition: all 0.15s; background: white;
-            text-align: center; color: #64748b;
-        }
-        .stage-btn:hover { border-color: #3b82f6; color: #4a7fc1; background: #eff6ff; }
-        .stage-btn.active-70  { border-color: #4a7fc1; background: linear-gradient(135deg,#4a7fc1,#5b8dd9); color: white; box-shadow: 0 4px 12px rgba(29,78,216,0.35); }
-        .stage-btn.active-30  { border-color: #1a6b50; background: linear-gradient(135deg,#1a6b50,#1e7f60); color: white; box-shadow: 0 4px 12px rgba(6,95,70,0.35); }
-        .stage-btn.active-100 { border-color: #a0520f; background: linear-gradient(135deg,#a0520f,#c07010); color: white; box-shadow: 0 4px 12px rgba(146,64,14,0.35); }
+html, body { background: var(--paper); }
+body {
+    font-family: 'Inter', 'Noto Sans TC', -apple-system, sans-serif;
+    color: var(--ink);
+    min-height: 100vh;
+    font-size: 16px;
+    font-feature-settings: "ss01", "cv11", "palt";
+    background:
+        radial-gradient(ellipse 50% 30% at 50% -10%, rgba(29,53,87,0.05), transparent 60%),
+        radial-gradient(ellipse 60% 40% at 100% 100%, rgba(176,48,40,0.03), transparent 70%),
+        var(--paper);
+    background-attachment: fixed;
+    position: relative;
+}
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+    -webkit-mask-image: radial-gradient(ellipse 90% 90% at 50% 50%, black 30%, transparent 90%);
+            mask-image: radial-gradient(ellipse 90% 90% at 50% 50%, black 30%, transparent 90%);
+    opacity: 0.6;
+    z-index: 0;
+}
+body > * { position: relative; z-index: 1; }
 
-        /* ── 數字輸入欄 ── */
-        .num-input {
-            width: 100%;
-            padding: 10px 14px;
-            border: 2px solid #cbd5e1;
-            border-radius: 12px;
-            background: #f8fafc;
-            font-family: 'Courier New', monospace;
-            font-weight: 700;
-            text-align: right;
-            font-size: 16px;
-            color: #dc2626;
-            transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
-            outline: none;
-        }
-        .num-input:focus {
-            border-color: #3b82f6;
-            background: #eff6ff;
-            color: #dc2626;
-            box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
-        }
-        .num-input.done { color: #3a5278; }
+/* Type utilities */
+.f-mono { font-family: 'JetBrains Mono', 'Courier New', monospace; font-variant-numeric: tabular-nums; }
+.f-serif { font-family: 'Noto Serif TC', 'Inter', serif; }
+.f-tracked { letter-spacing: 0.18em; text-transform: uppercase; }
+.f-tracked-sm { letter-spacing: 0.1em; text-transform: uppercase; font-size: 13px; font-weight: 600; }
 
-        .num-input.cost-style {
-            font-size: 22px;
-            font-weight: 900;
-            border-color: #3b82f6;
-            background: linear-gradient(135deg,#eff6ff,#dbeafe);
-        }
-        .num-input.cost-style:focus  { border-color: #4a7fc1; box-shadow: 0 0 0 3px rgba(29,78,216,0.18); }
-        .num-input.cost-style.done   { color: #4a7fc1; }
+/* ── Sheet container with registration marks ── */
+.sheet {
+    background: transparent;
+    position: relative;
+    padding: 28px 32px 36px;
+    border: 1px solid var(--line);
+    margin-bottom: 28px;
+    background-image:
+        linear-gradient(to right, rgba(255,255,255,0.4), rgba(255,255,255,0.65) 30%, rgba(255,255,255,0.4));
+}
+.sheet::before, .sheet::after,
+.sheet > .reg-tl, .sheet > .reg-tr, .sheet > .reg-bl, .sheet > .reg-br {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    pointer-events: none;
+}
+.sheet::before {
+    /* TL crosshair */
+    top: -1px; left: -1px;
+    border-top: 1.5px solid var(--ink);
+    border-left: 1.5px solid var(--ink);
+}
+.sheet::after {
+    /* TR */
+    top: -1px; right: -1px;
+    border-top: 1.5px solid var(--ink);
+    border-right: 1.5px solid var(--ink);
+}
+.sheet > .reg-bl {
+    bottom: -1px; left: -1px;
+    border-bottom: 1.5px solid var(--ink);
+    border-left: 1.5px solid var(--ink);
+}
+.sheet > .reg-br {
+    bottom: -1px; right: -1px;
+    border-bottom: 1.5px solid var(--ink);
+    border-right: 1.5px solid var(--ink);
+}
 
-        /* ── PDF A4 頁面 ── */
-        .preview-scroll-container {
-            overflow-x: auto; background: linear-gradient(180deg,#3a5278 0%,#2a3d5c 100%);
-            padding: 40px 0; display: flex; flex-direction: column;
-            align-items: center; gap: 40px;
-        }
-        .pdf-export-mode {
-            padding: 0 !important; gap: 0 !important;
-            background: transparent !important; display: block !important;
-        }
-        .pdf-export-mode .a4-page {
-            box-shadow: none !important;
-            margin: 0 !important;
-            height: 386mm !important;
-            min-height: unset !important;
-            page-break-after: always;
-        }
-        .pdf-export-mode .a4-page:last-child {
-            page-break-after: auto !important;
-        }
-        /* JS 動態加到最後一個可見頁，確保不強制換頁 */
-        .pdf-export-mode .pdf-last-page {
-            page-break-after: auto !important;
-        }
+/* ── Master header (drawing sheet title) ── */
+.site-header {
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    padding: 0;
+    margin-bottom: 32px;
+    position: relative;
+}
+.site-header .top-strip {
+    background: var(--ink);
+    color: var(--paper);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 22px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.18em;
+    font-weight: 500;
+}
+.site-header .top-strip .right { display: flex; gap: 24px; align-items: center; }
+.site-header .top-strip .dot { width: 6px; height: 6px; background: var(--red); border-radius: 50%; }
+.site-header .body {
+    padding: 28px 32px 24px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 28px;
+    align-items: end;
+    border-bottom: 1px solid var(--line);
+}
+.site-header h1 {
+    font-family: 'Noto Serif TC', serif;
+    font-size: 44px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.15;
+    letter-spacing: 2px;
+}
+.site-header .sub {
+    margin-top: 14px;
+    font-size: 14.5px;
+    color: var(--ink-mute);
+    line-height: 1.7;
+    letter-spacing: 0.5px;
+}
+.site-header .meta {
+    text-align: right;
+    border-left: 1px solid var(--line);
+    padding-left: 24px;
+    min-width: 200px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 18px;
+    align-self: stretch;
+    align-content: center;
+}
+.site-header .meta .k {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+}
+.site-header .meta .v {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-top: 4px;
+    letter-spacing: 0.05em;
+}
+.site-header .index-strip {
+    display: flex; gap: 0;
+    padding: 0;
+    border-top: 1px solid var(--line);
+    background: var(--paper-2);
+}
+.site-header .index-strip .item {
+    flex: 1;
+    padding: 14px 22px;
+    border-right: 1px solid var(--line);
+    font-size: 13.5px;
+    letter-spacing: 0.08em;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    font-weight: 600;
+    display: flex; align-items: center; gap: 10px;
+}
+.site-header .index-strip .item:last-child { border-right: none; }
+.site-header .index-strip .item .n {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--ink);
+    font-weight: 700;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 3px 8px;
+    font-size: 12.5px;
+    letter-spacing: 0.05em;
+}
 
-        .a4-page {
-            background: #fff; width: 273mm; min-height: 386mm;
-            padding: 18mm 20mm; box-sizing: border-box; display: flex;
-            flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-            page-break-after: always; page-break-inside: avoid; margin: 0 auto;
-            border-radius: 2px;
-        }
-        .receipt-border {
-            border: 2.5pt solid #2d5a9e; padding: 18pt; flex-grow: 1;
-            display: flex; flex-direction: column; box-sizing: border-box;
-            border-radius: 4pt;
-        }
-        .stable-table { width: 100%; border-collapse: collapse; }
-        .stable-table td, .stable-table th { vertical-align: middle; }
-        .bar-title {
-            background: linear-gradient(90deg, #2d5a9e 0%, #4a7fc1 100%);
-            color: white; padding: 7pt 14pt;
-            font-weight: 900; font-size: 11.5pt; border-radius: 6pt 6pt 0 0; margin-top: 14pt;
-            letter-spacing: 0.5pt;
-        }
-        .section-content { padding: 12pt 15pt; border: 1pt solid #cbd5e1; border-radius: 0 0 6pt 6pt; }
-        .row-line { border-bottom: 0.5pt solid #cbd5e1; }
+/* ── Section header (chapter / step) ── */
+.section-head {
+    display: flex; align-items: baseline; gap: 16px;
+    margin-bottom: 20px;
+    padding: 14px 0 12px;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--line-soft);
+    position: relative;
+}
+.section-head::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: 0;
+    width: 60px; height: 3px;
+    background: var(--red);
+}
+.section-head .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--red);
+    letter-spacing: 0.1em;
+    margin-top: 6px;
+}
+.section-head .name {
+    font-family: 'Noto Serif TC', serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: 1px;
+}
+.section-head .en {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--ink-mute);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-left: auto;
+    font-weight: 600;
+}
+.section-head .sheet-no {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13.5px;
+    color: var(--ink);
+    border: 1px solid var(--ink);
+    padding: 3px 9px;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+}
 
-        .ref-table { font-size: 12px; border-collapse: collapse; width: 100%; }
-        .ref-table th { background: linear-gradient(90deg,#3a5278,#4a627a); color: white; padding: 7px 10px; }
-        .ref-table td { padding: 5px 10px; border-bottom: 1px solid #e2e8f0; }
-        .ref-table tr:hover td { background: #f8fafc; }
+/* ── Input card (panel) ── */
+.input-card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 26px 28px 24px;
+    position: relative;
+}
+.input-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 32px; height: 1px;
+    background: var(--red);
+}
 
-        @media print {
-            .no-print { display: none !important; }
-            @page { size: 273mm 386mm portrait; margin: 0; }
-            body, html { background: white !important; }
-            .preview-scroll-container { background: transparent !important; padding: 0 !important; display: block !important; }
-            .a4-page { box-shadow: none !important; margin: 0 !important; height: 386mm !important; page-break-after: always; }
-            .a4-page:last-child { page-break-after: auto !important; }
-        }
+/* Field label */
+.field-label {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px dashed var(--line-soft);
+}
+.field-label .zh {
+    font-family: 'Noto Sans TC', sans-serif;
+    font-weight: 700;
+    color: var(--ink);
+    font-size: 15px;
+    letter-spacing: 0.05em;
+    text-transform: none;
+    margin-right: 10px;
+}
 
-        /* ── 網頁 header 漸層 ── */
-        .site-header {
-            background: linear-gradient(135deg, #2d5a9e 0%, #4a7fc1 50%, #7eb8f0 100%);
-            border-radius: 20px; padding: 32px 24px; margin-bottom: 28px;
-            box-shadow: 0 8px 32px rgba(29,78,216,0.3);
-            position: relative; overflow: hidden;
-        }
-        .site-header::before {
-            content: ''; position: absolute; top: -40px; right: -40px;
-            width: 180px; height: 180px; border-radius: 50%;
-            background: rgba(255,255,255,0.06);
-        }
-        .site-header::after {
-            content: ''; position: absolute; bottom: -60px; left: 20px;
-            width: 240px; height: 240px; border-radius: 50%;
-            background: rgba(255,255,255,0.04);
-        }
+/* ── ID card (architect type) ── */
+.id-card {
+    position: relative;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    padding: 24px 26px 22px 28px;
+    cursor: pointer;
+    transition: border-color .18s, background .18s;
+}
+.id-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0; width: 4px;
+    background: transparent;
+    transition: background .18s;
+}
+.id-card:hover { border-color: var(--ink); background: rgba(255,255,255,0.4); }
+.id-card.selected-local { border-color: var(--blueprint); background: rgba(29,53,87,0.04); }
+.id-card.selected-local::before { background: var(--blueprint); }
+.id-card.selected-outside { border-color: var(--ink); background: rgba(26,29,36,0.04); }
+.id-card.selected-outside::before { background: var(--ink); }
 
-        /* ── 步驟標籤 ── */
-        .step-badge {
-            background: linear-gradient(135deg,#4a7fc1,#5b8dd9);
-            color: white; border-radius: 50%; width: 30px; height: 30px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 14px; font-weight: 900; flex-shrink: 0;
-            box-shadow: 0 3px 10px rgba(29,78,216,0.4);
-        }
+.id-card .head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; margin-bottom: 4px;
+}
+.id-card .title {
+    font-family: 'Noto Serif TC', serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--ink);
+}
+.id-card.selected-local .title { color: var(--blueprint); }
+.id-card .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    color: var(--ink-mute);
+    font-weight: 700;
+}
+.id-card .body {
+    font-size: 15.5px;
+    color: var(--ink-2);
+    margin-top: 8px;
+    line-height: 1.7;
+}
+.id-card .chips {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px;
+}
+.id-card .chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    color: var(--ink-mute);
+    background: rgba(255,255,255,0.4);
+}
+.id-card.selected-local .chip { border-color: var(--blueprint); color: var(--blueprint); }
+.id-card.selected-outside .chip { border-color: var(--ink); color: var(--ink); }
 
-        /* ── 輸入卡片 ── */
-        .input-card {
-            background: white; border-radius: 20px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-            border: 1.5px solid #e8edf5; padding: 24px;
-        }
+/* radio dot */
+.id-radio {
+    width: 14px; height: 14px;
+    border: 1.5px solid var(--ink-faint);
+    border-radius: 50%;
+    position: relative;
+    flex-shrink: 0;
+    display: inline-block;
+    margin-top: 3px;
+}
+.id-card.selected-local .id-radio { border-color: var(--blueprint); }
+.id-card.selected-local .id-radio::after {
+    content: ''; position: absolute;
+    inset: 2px; background: var(--blueprint); border-radius: 50%;
+}
+.id-card.selected-outside .id-radio { border-color: var(--ink); }
+.id-card.selected-outside .id-radio::after {
+    content: ''; position: absolute;
+    inset: 2px; background: var(--ink); border-radius: 50%;
+}
 
-        /* ── 即時摘要列 ── */
-        .summary-bar {
-            background: linear-gradient(135deg,#2a3d5c,#2d5a9e);
-            border-radius: 18px; padding: 20px 24px;
-            box-shadow: 0 6px 24px rgba(15,23,42,0.4);
-        }
+/* ── Stage button ── */
+.stage-btn {
+    flex: 1;
+    padding: 20px 4px 18px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink-mute);
+    font-family: 'Noto Sans TC', sans-serif;
+    font-weight: 700;
+    font-size: 17px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s, color .15s;
+    text-align: center;
+    letter-spacing: 0.05em;
+    position: relative;
+}
+.stage-btn span {
+    display: block;
+    margin-top: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    opacity: .8;
+    font-weight: 700;
+}
+.stage-btn:hover { border-color: var(--ink); color: var(--ink); }
+.stage-btn.active-70,
+.stage-btn.active-30,
+.stage-btn.active-100 {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--paper);
+}
+.stage-btn.active-70::before,
+.stage-btn.active-30::before,
+.stage-btn.active-100::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+}
+.stage-btn.active-70::before { background: var(--blueprint); }
+.stage-btn.active-30::before { background: #2d6a4f; }
+.stage-btn.active-100::before { background: var(--red); }
+
+/* ── Number input ── */
+.num-input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    background: rgba(255,255,255,0.5);
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    text-align: right;
+    font-size: 19px;
+    color: var(--red);
+    outline: none;
+    transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.num-input::placeholder { color: var(--ink-faint); font-weight: 400; }
+.num-input:focus {
+    border-color: var(--ink);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(26,29,36,0.08);
+}
+.num-input.done { color: var(--ink); }
+.num-input.cost-style {
+    font-size: 30px;
+    font-weight: 700;
+    border-color: var(--ink);
+    background: linear-gradient(180deg, #fff, var(--paper-2));
+    color: var(--red);
+    padding: 16px 18px;
+}
+.num-input.cost-style:focus { box-shadow: 0 0 0 3px rgba(29,53,87,0.12); }
+.num-input.cost-style.done { color: var(--blueprint); }
+
+/* ── Select ── */
+.sel {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    background: rgba(255,255,255,0.5);
+    color: var(--ink);
+    font-family: 'Noto Sans TC', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    outline: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%231a1d24' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 36px;
+    transition: border-color .15s, box-shadow .15s;
+}
+.sel:focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(26,29,36,0.08); }
+.sel.teal { color: var(--ink); border-color: var(--line); }
+
+/* radio (collaboration) */
+.radio-line { display: flex; gap: 24px; align-items: center; }
+.radio-pill {
+    display: inline-flex; align-items: center; gap: 10px;
+    cursor: pointer;
+    font-size: 15.5px;
+    color: var(--ink-2);
+    font-weight: 600;
+}
+.radio-pill input { accent-color: var(--ink); width: 18px; height: 18px; }
+
+/* ── Summary bar (title block style) ── */
+.summary-bar {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0;
+    margin-top: 20px;
+    border: 1px solid var(--ink);
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    align-items: stretch;
+}
+.summary-bar .cell {
+    padding: 20px 26px;
+    border-right: 1px solid rgba(244,238,223,0.18);
+    display: flex; flex-direction: column; justify-content: center;
+    min-height: 96px;
+}
+.summary-bar .cell:last-child { border-right: none; }
+.summary-bar .k {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.15em;
+    color: rgba(244,238,223,0.65);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.summary-bar .v {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    margin-top: 8px;
+}
+.summary-bar .v.lg { font-size: 28px; color: var(--paper); }
+.summary-bar .v.xl { font-size: 36px; color: #d4a017; letter-spacing: -0.5px; }
+.summary-bar .owner-flag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--red-soft);
+    border: 1px solid var(--red-soft);
+    padding: 3px 8px;
+    margin-top: 8px;
+    display: inline-block;
+    width: fit-content;
+    text-transform: uppercase;
+}
+
+/* ── PDF button ── */
+.btn-pdf {
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 18px 30px;
+    background: var(--red);
+    color: white;
+    border: 1px solid var(--red);
+    font-family: 'Noto Sans TC', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: background .15s, transform .15s;
+    text-transform: uppercase;
+    min-height: 96px;
+}
+.btn-pdf:hover { background: var(--ink); border-color: var(--ink); transform: translateY(-1px); }
+.btn-pdf:disabled { opacity: .6; cursor: wait; }
+.btn-pdf .zh { font-family: 'Noto Sans TC', sans-serif; letter-spacing: 0.05em; }
+
+/* ── Reference table ── */
+.ref-table { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; }
+.ref-table th {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 12px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 12.5px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    text-align: left;
+}
+.ref-table th:nth-child(2) { text-align: center; }
+.ref-table th:nth-child(3) { text-align: right; }
+.ref-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--ink-2);
+    font-size: 15px;
+}
+.ref-table td:nth-child(2) { text-align: center; color: var(--ink-mute); font-size: 13.5px; }
+.ref-table td:nth-child(3) {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    color: var(--ink);
+}
+.ref-table tr:nth-child(even) td { background: rgba(255,255,255,0.3); }
+.ref-table tr:hover td { background: rgba(29,53,87,0.06); }
+
+/* County hint */
+.county-hint {
+    margin-top: 10px;
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    font-size: 14px;
+    line-height: 1.75;
+    font-weight: 500;
+    background: rgba(255,255,255,0.4);
+}
+.county-hint.high { border-color: var(--red); background: rgba(176,48,40,0.06); color: var(--ink); }
+
+/* collab pct */
+.collab-pct-wrap {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 10px; padding-left: 0;
+}
+.collab-pct-wrap .num {
+    width: 90px;
+    padding: 10px 12px;
+    border: 1px solid var(--ink);
+    background: #fff;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    text-align: center;
+    color: var(--ink);
+    outline: none;
+    font-size: 17px;
+}
+
+/* checkbox */
+.owner-row {
+    display: flex; align-items: center; gap: 12px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--line-soft);
+    margin-top: 4px;
+    cursor: pointer;
+}
+.owner-row input { width: 20px; height: 20px; accent-color: var(--ink); }
+
+/* refCostHint */
+#refCostHint:not(:empty) {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: rgba(29,53,87,0.06);
+    border-left: 3px solid var(--blueprint);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--blueprint);
+}
+
+/* ════════ PDF preview area ════════ */
+.preview-section-head {
+    display: flex; align-items: baseline; gap: 14px;
+    margin: 40px 0 18px;
+    padding: 14px 0 12px;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--line-soft);
+    position: relative;
+}
+.preview-section-head::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: 0;
+    width: 60px; height: 3px;
+    background: var(--ink);
+}
+.preview-section-head .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: 0.1em;
+}
+.preview-section-head .name {
+    font-family: 'Noto Serif TC', serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: 1px;
+}
+.preview-section-head .en {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--ink-mute);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-left: auto;
+    font-weight: 600;
+}
+
+.preview-scroll-container {
+    overflow-x: auto;
+    background:
+        radial-gradient(ellipse 70% 50% at 50% 0%, rgba(29,53,87,0.5), transparent 70%),
+        linear-gradient(180deg, #20283a 0%, #131722 100%);
+    padding: 48px 0 56px;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 56px;
+    border: 1px solid var(--ink);
+    position: relative;
+}
+.preview-scroll-container::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+}
+.pdf-export-mode {
+    padding: 0 !important; gap: 0 !important;
+    background: transparent !important;
+    display: block !important;
+    border: none !important;
+}
+.pdf-export-mode::before { display: none; }
+.pdf-export-mode .a4-page {
+    box-shadow: none !important;
+    margin: 0 !important;
+    height: 386mm !important;
+    min-height: unset !important;
+    page-break-after: always;
+}
+.pdf-export-mode .a4-page:last-child { page-break-after: auto !important; }
+.pdf-export-mode .pdf-last-page { page-break-after: auto !important; }
+
+/* ════════ A4 page (drawing sheet) ════════ */
+.a4-page {
+    background: #fcf8ee;
+    width: 273mm; min-height: 386mm;
+    padding: 14mm;
+    box-sizing: border-box;
+    display: flex; flex-direction: column;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,0.55), 0 8px 24px -8px rgba(0,0,0,0.3);
+    page-break-after: always; page-break-inside: avoid;
+    margin: 0 auto;
+    position: relative;
+    border-radius: 0;
+}
+/* Drawing sheet outer frame */
+.receipt-border {
+    border: 1.5pt solid var(--ink);
+    padding: 10pt 12pt 0;
+    flex-grow: 1;
+    display: flex; flex-direction: column; box-sizing: border-box;
+    position: relative;
+    background: #fcf8ee;
+    background-image:
+        linear-gradient(rgba(160,145,100,0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(160,145,100,0.08) 1px, transparent 1px);
+    background-size: 8mm 8mm;
+}
+/* Corner registration marks on each sheet */
+.receipt-border::before, .receipt-border::after,
+.receipt-border .reg-bl, .receipt-border .reg-br {
+    content: ''; position: absolute;
+    width: 8pt; height: 8pt;
+    pointer-events: none;
+}
+.receipt-border::before { top: -1.5pt; left: -1.5pt; border-top: 1.5pt solid var(--ink); border-left: 1.5pt solid var(--ink); }
+.receipt-border::after  { top: -1.5pt; right: -1.5pt; border-top: 1.5pt solid var(--ink); border-right: 1.5pt solid var(--ink); }
+
+.stable-table { width: 100%; border-collapse: collapse; }
+.stable-table td, .stable-table th { vertical-align: middle; }
+
+/* PDF section bar */
+.bar-title {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 8pt 14pt 7pt;
+    font-family: 'Noto Serif TC', serif;
+    font-weight: 700;
+    font-size: 13pt;
+    margin-top: 12pt;
+    letter-spacing: 2pt;
+    border-radius: 0;
+    display: flex; align-items: baseline; gap: 14pt;
+    position: relative;
+}
+.bar-title::before {
+    content: '';
+    position: absolute;
+    left: 0; bottom: -3pt; width: 40pt; height: 1pt; background: var(--red);
+}
+.section-content {
+    padding: 14pt 16pt;
+    border: 0.75pt solid var(--ink);
+    border-top: none;
+    border-radius: 0;
+    background: rgba(255,253,248,0.6);
+    font-size: 11pt;
+}
+.row-line { border-bottom: 0.5pt solid var(--line); }
+
+@media print {
+    .no-print { display: none !important; }
+    @page { size: 273mm 386mm portrait; margin: 0; }
+    body, html { background: white !important; }
+    body::before { display: none !important; }
+    .preview-scroll-container { background: transparent !important; padding: 0 !important; display: block !important; border: none !important; }
+    .preview-scroll-container::before { display: none !important; }
+    .a4-page { box-shadow: none !important; margin: 0 !important; height: 386mm !important; page-break-after: always; }
+    .a4-page:last-child { page-break-after: auto !important; }
+}
     </style>
 </head>
 <body class="pb-16">
 <div class="container mx-auto px-4 py-8 max-w-6xl">
 
     <!-- 標題 -->
-    <header class="site-header text-center no-print">
-        <div class="inline-block bg-white bg-opacity-20 text-white px-5 py-1 rounded-full text-xs font-bold mb-3 tracking-widest backdrop-blur-sm" style="border:1px solid rgba(255,255,255,0.3);">社團法人新竹縣建築師公會</div>
-        <h1 class="text-3xl font-black text-white" style="text-shadow:0 2px 8px rgba(0,0,0,0.3);">建照申請掛件費用計算系統</h1>
-        <p class="text-blue-100 mt-2 text-sm opacity-90">依據新竹縣建築師酬金標準表及協檢作業收費標準自動計算 ｜ V3.1 (2026/5/19上線)</p>
+    <header class="site-header no-print">
+        <div class="top-strip">
+            <div class="left">HSINCHU COUNTY · ARCHITECTS ASSOCIATION · DOCUMENT FORM</div>
+            <div class="right">
+                <span>DRWG · A-001</span>
+                <span class="dot"></span>
+                <span>SHEET 01 of 02</span>
+            </div>
+        </div>
+        <div class="body">
+            <div>
+                <div class="f-tracked-sm" style="color:var(--ink-mute);margin-bottom:8px;">社團法人 · 新竹縣建築師公會</div>
+                <h1>建照申請掛件<br>費用計算系統</h1>
+                <p class="sub">Hsinchu County Building Permit Filing Fee Calculator<br>依據新竹縣建築師酬金標準表及協檢作業收費標準自動計算</p>
+            </div>
+            <div class="meta">
+                <div>
+                    <div class="k">Sheet No.</div>
+                    <div class="v">A — 001</div>
+                </div>
+                <div>
+                    <div class="k">Version</div>
+                    <div class="v">V 3.4</div>
+                </div>
+                <div>
+                    <div class="k">Scale</div>
+                    <div class="v">AS NOTED</div>
+                </div>
+                <div>
+                    <div class="k">Issued</div>
+                    <div class="v">2026.07.16</div>
+                </div>
+            </div>
+        </div>
+        <div class="index-strip">
+            <div class="item"><span class="n">01</span><span>SELECT ARCHITECT TYPE</span></div>
+            <div class="item"><span class="n">02</span><span>PROJECT DATA INPUT</span></div>
+            <div class="item"><span class="n">03</span><span>FEE STATEMENT OUTPUT</span></div>
+        </div>
     </header>
 
     <!-- STEP 1 -->
     <div class="no-print mb-6">
-        <div class="flex items-center mb-4">
-            <span class="step-badge mr-3">1</span>
-            <h2 class="text-lg font-black text-slate-700">選擇建築師身分</h2>
+        <div class="section-head">
+            <span class="num">01 ／</span>
+            <span class="name">選擇建築師身分</span>
+            <span class="en">SELECT ARCHITECT TYPE</span>
+            <span class="sheet-no">A-001-1</span>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="id-card selected-local" id="card-local" onclick="selectType('local')">
-                <div class="flex items-start gap-3">
-                    <div class="w-5 h-5 rounded-full border-2 border-blue-600 flex items-center justify-center mt-1 flex-shrink-0" id="radio-local">
-                        <div class="w-2.5 h-2.5 rounded-full bg-blue-600"></div>
-                    </div>
-                    <div>
-                        <div class="font-black text-blue-800 text-base">新竹縣建築師公會會員</div>
-                        <div class="text-sm text-slate-600 mt-1">須繳設計費（酬金）進公會，掛件70%、領照30%</div>
-                        <div class="mt-2 flex flex-wrap gap-1">
-                            <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold">設計費酬金</span>
-                            <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold">協檢費</span>
-                            <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold">行政作業費</span>
-                            <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold">事業費</span>
+                <div style="display:flex;gap:14px;">
+                    <span class="id-radio" id="radio-local"></span>
+                    <div style="flex:1;">
+                        <div class="head">
+                            <span class="title">新竹縣建築師公會會員</span>
+                            <span class="badge">TYPE · LOCAL</span>
+                        </div>
+                        <div class="body">須繳設計費（酬金）進公會　·　掛件 70% / 領照 30%</div>
+                        <div class="chips">
+                            <span class="chip">設計費酬金</span>
+                            <span class="chip">協檢費</span>
+                            <span class="chip">行政作業費</span>
+                            <span class="chip">事業費</span>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="id-card" id="card-outside" onclick="selectType('outside')">
-                <div class="flex items-start gap-3">
-                    <div class="w-5 h-5 rounded-full border-2 border-slate-400 flex items-center justify-center mt-1 flex-shrink-0" id="radio-outside">
-                        <div class="w-2.5 h-2.5 rounded-full bg-transparent"></div>
-                    </div>
-                    <div>
-                        <div class="font-black text-teal-800 text-base">外縣市建築師</div>
-                        <div class="text-sm text-slate-600 mt-1">不繳設計費，依工程造價繳交事業補助費及協審費</div>
-                        <div class="mt-2 flex flex-wrap gap-1">
-                            <span class="bg-teal-100 text-teal-700 text-xs px-2 py-0.5 rounded-full font-bold">事業補助費 4/10,000</span>
-                            <span class="bg-teal-100 text-teal-700 text-xs px-2 py-0.5 rounded-full font-bold">協審費 1/10,000</span>
-                            <span class="bg-teal-100 text-teal-700 text-xs px-2 py-0.5 rounded-full font-bold">行政作業費</span>
+                <div style="display:flex;gap:14px;">
+                    <span class="id-radio" id="radio-outside"></span>
+                    <div style="flex:1;">
+                        <div class="head">
+                            <span class="title">外縣市建築師</span>
+                            <span class="badge">TYPE · NON-LOCAL</span>
+                        </div>
+                        <div class="body">不繳設計費　·　依工程造價繳交事業補助費及協審費</div>
+                        <div class="chips">
+                            <span class="chip">事業補助費 4／10,000</span>
+                            <span class="chip">協審費 1／10,000</span>
+                            <span class="chip">行政作業費</span>
                         </div>
                     </div>
                 </div>
@@ -224,9 +896,11 @@
 
     <!-- STEP 2 -->
     <div class="no-print mb-6">
-        <div class="flex items-center mb-4">
-            <span class="step-badge mr-3">2</span>
-            <h2 class="text-lg font-black text-slate-700">填入案件資料</h2>
+        <div class="section-head">
+            <span class="num">02 ／</span>
+            <span class="name">填入案件資料</span>
+            <span class="en">PROJECT DATA INPUT</span>
+            <span class="sheet-no">A-001-2</span>
         </div>
 
         <div id="layout-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -236,9 +910,8 @@
 
                 <!-- 建築物類別 -->
                 <div id="block-caseType">
-                    <label class="block text-xs font-bold text-slate-500 mb-1">建築物類別（對應酬金標準表）</label>
-                    <select id="caseType" onchange="calculateAll()"
-                        class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl bg-slate-50 font-bold text-slate-800 outline-none focus:border-blue-500 transition-colors">
+                    <label class="field-label"><span class="zh">建築物類別</span>BUILDING CATEGORY · REMUNERATION SCALE</label>
+                    <select id="caseType" onchange="calculateAll()" class="sel">
                         <option value="general">一般建築（倉庫、工廠、四層以下住宅、店舖…）5.5%起</option>
                         <option value="public">公共及高層建築（辦公大樓、市場、旅館…）6.0%起</option>
                         <option value="special">特殊建築（高級住宅、博物館、觀光飯店、醫院…）7.0%起</option>
@@ -247,20 +920,19 @@
 
                 <!-- 所屬建築師公會（外縣市才顯示，平等互惠原則） -->
                 <div id="block-homeCounty" style="display:none;">
-                    <label class="block text-xs font-bold text-slate-500 mb-1">所屬建築師公會（平等互惠原則）</label>
-                    <select id="homeCounty" onchange="calculateAll()"
-                        class="w-full px-3 py-2.5 border-2 border-teal-300 rounded-xl bg-teal-50 font-bold text-teal-800 outline-none focus:border-teal-500 transition-colors">
+                    <label class="field-label"><span class="zh">所屬建築師公會</span>HOME ASSOCIATION · RECIPROCITY</label>
+                    <select id="homeCounty" onchange="calculateAll()" class="sel">
                                                 <option value="taoyuan">桃園市建築師公會</option>
                         <option value="taipei">臺北市建築師公會</option>
                         <option value="newTaipei">新北市建築師公會</option>
                         <option value="other">其他縣市公會（依新竹縣費率計算）</option>
                     </select>
-                    <div id="county-rate-hint" style="display:none;" class="text-xs mt-2 p-2 rounded-lg border font-bold"></div>
+                    <div id="county-rate-hint" class="county-hint" style="display:none;"></div>
                 </div>
 
                 <!-- 繳費階段 -->
                 <div id="block-stage">
-                    <label class="block text-xs font-bold text-slate-500 mb-2">繳費階段</label>
+                    <label class="field-label"><span class="zh">繳費階段</span>PAYMENT STAGE</label>
                     <div class="flex gap-2">
                         <button class="stage-btn active-70" id="btn-70"  onclick="setStage('70')">掛件繳納<br><span class="text-xs font-bold opacity-80">70%</span></button>
                         <button class="stage-btn"           id="btn-30"  onclick="setStage('30')">領照繳納<br><span class="text-xs font-bold opacity-80">30%</span></button>
@@ -270,85 +942,76 @@
 
                 <!-- 合作設計案比例（本縣才顯示） -->
                 <div id="block-collab">
-                    <label class="block text-xs font-bold text-slate-500 mb-2">設計案類型</label>
-                    <div class="flex flex-wrap gap-4 mb-2">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="collabType" id="collab-solo" value="solo"
-                                   checked onchange="handleCollabChange()" class="accent-blue-600 w-4 h-4">
-                            <span class="text-sm font-bold text-slate-700">單獨設計案（100%）</span>
+                    <label class="field-label"><span class="zh">設計案類型</span>PROJECT TYPE</label>
+                    <div class="radio-line" style="margin-bottom:8px;">
+                        <label class="radio-pill">
+                            <input type="radio" name="collabType" id="collab-solo" value="solo" checked onchange="handleCollabChange()">
+                            <span style="white-space:nowrap;">單獨設計案 · SOLO</span>
                         </label>
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="collabType" id="collab-joint" value="joint"
-                                   onchange="handleCollabChange()" class="accent-blue-600 w-4 h-4">
-                            <span class="text-sm font-bold text-slate-700">合作設計案</span>
+                        <label class="radio-pill">
+                            <input type="radio" name="collabType" id="collab-joint" value="joint" onchange="handleCollabChange()">
+                            <span style="white-space:nowrap;">合作設計案 · JOINT</span>
                         </label>
                     </div>
-                    <div id="block-collab-pct" style="display:none;" class="flex items-center gap-2 mt-1 pl-1">
-                        <span class="text-sm text-slate-600 font-bold">本案比例：</span>
-                        <input type="number" id="collabPct" min="1" max="99" value="50"
-                               class="w-20 px-2 py-1.5 border-2 border-blue-300 rounded-lg text-sm font-black text-center outline-none focus:border-blue-500"
-                               oninput="calculateAll()">
-                        <span class="text-sm font-bold text-slate-600">%</span>
-                        <span class="text-xs text-slate-400">（1 ～ 99 %）</span>
+                    <div id="block-collab-pct" style="display:none;" class="collab-pct-wrap">
+                        <span class="f-mono" style="font-size:14px;letter-spacing:0.12em;color:var(--ink-mute);font-weight:700;text-transform:uppercase;">SHARE / 比例</span>
+                        <input type="number" id="collabPct" min="1" max="99" value="50" class="num" oninput="calculateAll()">
+                        <span class="f-mono" style="font-weight:700;color:var(--ink);font-size:18px;">%</span>
+                        <span class="f-mono" style="font-size:12.5px;color:var(--ink-faint);letter-spacing:0.08em;font-weight:600;">RANGE 1 — 99</span>
                     </div>
                 </div>
 
                 <!-- 構造類別 -->
                 <div id="block-structure">
-                    <label class="block text-xs font-bold text-slate-500 mb-1">構造類別（對照法定造價表，供確認用）</label>
-                    <select id="structureType" onchange="updateRefCost()"
-                        class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl bg-slate-50 font-bold outline-none focus:border-blue-500 transition-colors">
-                        <option value="5400">鋼骨或鋼筋混凝土 五層以下（5,400元/㎡）</option>
-                        <option value="6400">鋼骨或鋼筋混凝土 六至十層（6,400元/㎡）</option>
-                        <option value="9200">鋼骨或鋼筋混凝土 十一至十五層（9,200元/㎡）</option>
-                        <option value="9700">鋼骨或鋼筋混凝土 十六至二十層（9,700元/㎡）</option>
-                        <option value="10800">鋼骨或鋼筋混凝土 二十一層以上（10,800元/㎡）</option>
-                        <option value="4200">鋼筋混凝土加強磚造（4,200元/㎡）</option>
-                        <option value="3000">磚造（3,000元/㎡）</option>
-                        <option value="3000">木造（3,000元/㎡）</option>
-                        <option value="3000">磚木造（3,000元/㎡）</option>
-                        <option value="3000">磚石造（3,000元/㎡）</option>
-                        <option value="3600">鋼鐵造有牆者（3,600元/㎡）</option>
-                        <option value="2500">鋼鐵造無牆者（2,500元/㎡）</option>
-                        <option value="1800">圍牆（1,800元/公尺）</option>
+                    <label class="field-label"><span class="zh">構造類別</span>STRUCTURE TYPE · REFERENCE</label>
+                    <select id="structureType" onchange="updateRefCost()" class="sel">
+                        <option value="5600">鋼骨或鋼筋混凝土 五層以下（5,600元/㎡）</option>
+                        <option value="6700">鋼骨或鋼筋混凝土 六至十層（6,700元/㎡）</option>
+                        <option value="9700">鋼骨或鋼筋混凝土 十一至十五層（9,700元/㎡）</option>
+                        <option value="10300">鋼骨或鋼筋混凝土 十六至二十層（10,300元/㎡）</option>
+                        <option value="11500">鋼骨或鋼筋混凝土 二十一層以上（11,500元/㎡）</option>
+                        <option value="4400">鋼筋混凝土加強磚造（4,400元/㎡）</option>
+                        <option value="3100">磚造（3,100元/㎡）</option>
+                        <option value="3100">木造（3,100元/㎡）</option>
+                        <option value="3100">磚木造（3,100元/㎡）</option>
+                        <option value="3100">磚石造（3,100元/㎡）</option>
+                        <option value="3900">鋼鐵造有牆者（3,900元/㎡）</option>
+                        <option value="2700">鋼鐵造無牆者（2,700元/㎡）</option>
+                        <option value="1900">圍牆（1,900元/公尺）</option>
                     </select>
                 </div>
 
                 <!-- 樓地板面積 -->
                 <div id="block-area">
-                    <label class="block text-xs font-bold text-slate-500 mb-1">總樓地板面積（㎡）</label>
-                    <div class="flex gap-2 items-center">
-                        <input type="text" id="input-area" inputmode="decimal" placeholder="請輸入面積"
-                            class="num-input flex-1"
-                            oninput="handleInput('area')"
-                            onblur="handleBlur('area')"
-                            onfocus="handleFocus('area')">
-                        <span class="text-slate-500 font-bold flex-shrink-0">㎡</span>
+                    <label class="field-label"><span class="zh">總樓地板面積</span>TOTAL FLOOR AREA · SQM</label>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <input type="text" id="input-area" inputmode="decimal" placeholder="0.00"
+                            class="num-input"
+                            style="flex:1;"
+                            oninput="handleInput('area')" onblur="handleBlur('area')" onfocus="handleFocus('area')">
+                        <span class="f-mono" style="font-weight:700;color:var(--ink-mute);font-size:15px;flex-shrink:0;letter-spacing:0.05em;">㎡ / SQM</span>
                     </div>
                     <p id="refCostHint" class="text-xs text-slate-400 mt-1"></p>
                 </div>
 
                 <!-- 工程造價 -->
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1">總法定工程造價（元，建築師自行填入）</label>
-                    <div class="flex gap-2 items-center">
-                        <span class="text-slate-600 font-bold flex-shrink-0">NT$</span>
-                        <input type="text" id="input-cost" inputmode="numeric" placeholder="請輸入工程造價"
-                            class="num-input cost-style flex-1"
-                            oninput="handleInput('cost')"
-                            onblur="handleBlur('cost')"
-                            onfocus="handleFocus('cost')">
+                    <label class="field-label"><span class="zh">總法定工程造價</span>LEGAL CONSTRUCTION COST · NTD</label>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <span class="f-mono" style="font-weight:700;color:var(--ink);font-size:22px;flex-shrink:0;letter-spacing:0.03em;">NT$</span>
+                        <input type="text" id="input-cost" inputmode="numeric" placeholder="0"
+                            class="num-input cost-style" style="flex:1;"
+                            oninput="handleInput('cost')" onblur="handleBlur('cost')" onfocus="handleFocus('cost')">
                     </div>
                 </div>
 
                 <!-- 業主另外給付 -->
-                <div id="block-ownerPay" class="pt-3 border-t border-slate-100">
-                    <label class="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" id="isOwnerPay" onchange="calculateAll()"
-                            class="w-5 h-5 rounded accent-blue-600">
+                <div id="block-ownerPay">
+                    <label class="owner-row">
+                        <input type="checkbox" id="isOwnerPay" onchange="calculateAll()">
                         <div>
-                            <span class="text-sm font-bold text-slate-700">業主另外給付酬金</span>
-                            <span class="ml-2 text-xs text-slate-400">（設計費 × 0.9 倍作為公會收款）</span>
+                            <div style="font-size:16px;font-weight:700;color:var(--ink);">業主另外給付酬金</div>
+                            <div class="f-mono" style="font-size:12px;color:var(--ink-faint);letter-spacing:0.08em;margin-top:3px;font-weight:600;">OWNER PAYS · DESIGN FEE × 0.9</div>
                         </div>
                     </label>
                 </div>
@@ -356,10 +1019,14 @@
 
             <!-- 右欄：法定造價參考表 -->
             <div class="input-card" id="block-refTable">
-                <h3 class="text-sm font-black text-slate-700 mb-3" style="border-left:4px solid #4a7fc1;padding-left:10px;">
-                    新竹縣建築物及雜項工作物工程造價標準<br>
-                    <span class="text-xs text-slate-400 font-normal">（113年8月版，供建築師對照檢核）</span>
-                </h3>
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--ink);position:relative;">
+                    <div>
+                        <div class="f-tracked-sm" style="color:var(--red);">SCHEDULE · 工程造價標準</div>
+                        <div class="f-serif" style="font-size:16px;font-weight:700;color:var(--ink);letter-spacing:1px;margin-top:4px;">新竹縣建築物及雜項工作物工程造價標準</div>
+                        <div class="f-mono" style="font-size:10.5px;color:var(--ink-mute);margin-top:2px;letter-spacing:0.08em;">REV. 2026.07 · FOR REFERENCE</div>
+                    </div>
+                    <span class="f-mono" style="font-size:11px;letter-spacing:0.15em;color:var(--ink);border:1px solid var(--ink);padding:3px 8px;font-weight:600;">A-009</span>
+                </div>
                 <table class="ref-table">
                     <thead><tr>
                         <th class="text-left">構造類別</th>
@@ -367,181 +1034,202 @@
                         <th class="text-right">單價（元）</th>
                     </tr></thead>
                     <tbody>
-                        <tr><td>鋼骨或鋼筋混凝土 五層以下</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">5,400</td></tr>
-                        <tr><td>鋼骨或鋼筋混凝土 六至十層</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">6,400</td></tr>
-                        <tr><td>鋼骨或鋼筋混凝土 十一至十五層</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">9,200</td></tr>
-                        <tr><td>鋼骨或鋼筋混凝土 十六至二十層</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">9,700</td></tr>
-                        <tr><td>鋼骨或鋼筋混凝土 二十一層以上</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">10,800</td></tr>
-                        <tr><td>鋼筋混凝土加強磚造</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">4,200</td></tr>
-                        <tr><td>磚造</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">3,000</td></tr>
-                        <tr><td>木造</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">3,000</td></tr>
-                        <tr><td>磚木造</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">3,000</td></tr>
-                        <tr><td>磚石造</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">3,000</td></tr>
-                        <tr><td>鋼鐵造有牆者</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">3,600</td></tr>
-                        <tr><td>鋼鐵造無牆者</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">2,500</td></tr>
-                        <tr><td>圍牆</td><td class="text-center text-slate-500">公尺</td><td class="text-right font-bold">1,800</td></tr>
+                        <tr><td>鋼骨或鋼筋混凝土 五層以下</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">5,600</td></tr>
+                        <tr><td>鋼骨或鋼筋混凝土 六至十層</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">6,700</td></tr>
+                        <tr><td>鋼骨或鋼筋混凝土 十一至十五層</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">9,700</td></tr>
+                        <tr><td>鋼骨或鋼筋混凝土 十六至二十層</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">10,300</td></tr>
+                        <tr><td>鋼骨或鋼筋混凝土 二十一層以上</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">11,500</td></tr>
+                        <tr><td>鋼筋混凝土加強磚造</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">4,400</td></tr>
+                        <tr><td>磚造</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">3,100</td></tr>
+                        <tr><td>木造</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">3,100</td></tr>
+                        <tr><td>磚木造</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">3,100</td></tr>
+                        <tr><td>磚石造</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">3,100</td></tr>
+                        <tr><td>鋼鐵造有牆者</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">3,900</td></tr>
+                        <tr><td>鋼鐵造無牆者</td><td class="text-center text-slate-500">平方公尺</td><td class="text-right font-bold">2,700</td></tr>
+                        <tr><td>圍牆</td><td class="text-center text-slate-500">公尺</td><td class="text-right font-bold">1,900</td></tr>
                     </tbody>
                 </table>
-                <p class="text-xs text-slate-400 mt-2">備註：本表計算標準每年定期檢討之。</p>
+                <p class="f-mono" style="font-size:10.5px;color:var(--ink-faint);margin-top:14px;letter-spacing:0.06em;">NOTE · 本表計算標準每年定期檢討之 / Reviewed annually</p>
+                <p style="font-size:11px;color:var(--red);margin-top:6px;font-weight:700;letter-spacing:0.03em;">※ 造價標準已於 2026-07-16 更新（依新竹縣政府最新公告工程造價單價調整）</p>
             </div>
         </div>
 
-        <!-- 即時摘要 -->
-        <div class="summary-bar mt-4 flex flex-col md:flex-row items-center justify-between gap-3">
-            <div class="text-sm space-y-1">
-                <div>
-                    <span class="text-blue-200 opacity-80" id="quick-label">全案酬金（100%）：</span>
-                    <span class="font-black text-lg ml-1 font-mono text-white" id="quick-rem">－</span>
-                </div>
-                <div id="quick-stage-row" class="hidden">
-                    <span class="text-blue-200 opacity-80" id="quick-stage-label">本次應繳（掛件70%）：</span>
-                    <span class="font-black text-xl ml-1 font-mono text-yellow-300" id="quick-stage-val">－</span>
-                    <span id="owner-badge" class="hidden ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">×0.9業主給付</span>
-                </div>
+        <!-- 即時摘要 / TITLE BLOCK -->
+        <div class="summary-bar">
+            <div class="cell">
+                <div class="k" id="quick-label">SUBTOTAL · 全案酬金 / 100%</div>
+                <div class="v lg" id="quick-rem">—</div>
             </div>
-            <button onclick="generatePDF()" id="btn-pdf"
-                class="w-full md:w-auto px-8 py-3 rounded-xl font-black shadow-lg transition-all flex items-center justify-center gap-2 text-white"
-                style="background:linear-gradient(135deg,#5b8dd9,#7eb8f0);box-shadow:0 4px 16px rgba(37,99,235,0.45);"
-                onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(37,99,235,0.55)'"
-                onmouseout="this.style.transform='';this.style.boxShadow='0 4px 16px rgba(37,99,235,0.45)'">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="cell" id="quick-stage-row" style="display:none;">
+                <div class="k" id="quick-stage-label">DUE THIS STAGE · 本次應繳 / 70%</div>
+                <div class="v xl" id="quick-stage-val">—</div>
+                <span id="owner-badge" class="owner-flag" style="display:none;">× 0.9 OWNER PAYS</span>
+            </div>
+            <button onclick="generatePDF()" id="btn-pdf" class="btn-pdf">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                 </svg>
-                產生繳費明細單 PDF
+                <span class="zh">產出 FEE STATEMENT</span>
             </button>
         </div>
     </div>
 
     <!-- ════════ PDF 預覽區 ════════ -->
-    <div class="preview-scroll-container no-print rounded-2xl overflow-hidden" id="print-area">
+    <div class="preview-section-head no-print">
+        <span class="num">03 ／</span>
+        <span class="name">繳費明細單預覽</span>
+        <span class="en">FEE STATEMENT · A4 PORTRAIT 273 × 386 MM</span>
+    </div>
+    <div class="preview-scroll-container no-print" id="print-area">
 
         <!-- 第一頁 -->
         <div class="a4-page" id="page1">
             <div class="receipt-border">
 
-                <!-- ── PDF 標頭：深色橫幅 + LOGO白底卡片 ── -->
-                <div style="display:flex;align-items:center;margin-bottom:16pt;background:linear-gradient(135deg,#2d5a9e 0%,#4a7fc1 60%,#7eb8f0 100%);border-radius:8pt;padding:12pt 16pt;gap:14pt;">
-                    <!-- LOGO 白底容器：放大填滿 -->
-                    <div style="background:white;border-radius:8pt;padding:8pt 10pt;flex-shrink:0;box-shadow:0 2px 10px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;">
-                        <img src="data:image/png;base64,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" style="width:90pt;height:auto;display:block;" alt="新竹縣建築師公會">
+                <!-- ── PDF 標頭：建築圖紙風格 title block ── -->
+                <div style="display:flex;align-items:stretch;margin-bottom:14pt;border:1pt solid #1a1d24;">
+                    <!-- 左：圖號塊 -->
+                    <div style="background:#1a1d24;color:#f4eedf;padding:14pt 16pt;display:flex;flex-direction:column;justify-content:space-between;min-width:80pt;">
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.8pt;opacity:0.7;font-weight:600;">DRWG · NO.</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:22pt;font-weight:700;line-height:1;letter-spacing:1pt;margin-top:6pt;">A-001</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:9.5pt;letter-spacing:1.4pt;opacity:0.7;margin-top:7pt;font-weight:600;">SHEET 01 / 02</div>
                     </div>
-                    <!-- 標題文字 -->
-                    <div style="flex:1;text-align:center;">
-                        <div style="font-size:18pt;font-weight:900;letter-spacing:2pt;color:white;text-shadow:0 1px 4px rgba(0,0,0,0.3);">建照申請掛件費用明細單</div>
-                        <div style="height:1.5pt;background:rgba(255,255,255,0.35);margin:6pt 20pt;border-radius:1pt;"></div>
-                        <div style="font-size:8pt;font-weight:700;color:rgba(255,255,255,0.85);letter-spacing:1.5pt;">社團法人新竹縣建築師公會 ｜ FEE STATEMENT</div>
+                    <!-- 中：主標題 -->
+                    <div style="flex:1;padding:12pt 18pt;display:flex;flex-direction:column;justify-content:center;border-right:0.75pt solid #1a1d24;">
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:9.5pt;letter-spacing:1.8pt;color:#6e6856;font-weight:700;">HSINCHU COUNTY ARCHITECTS ASSOCIATION</div>
+                        <div style="font-family:'Noto Serif TC',serif;font-size:20pt;font-weight:700;color:#1a1d24;letter-spacing:3pt;line-height:1.15;margin-top:4pt;">建照申請掛件費用明細單</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:10.5pt;letter-spacing:1.1pt;color:#6e6856;margin-top:5pt;font-weight:600;">BUILDING PERMIT FILING · FEE STATEMENT</div>
+                    </div>
+                    <!-- 右：發行戳印 -->
+                    <div style="padding:12pt 14pt;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-end;min-width:90pt;">
+                        <div style="border:1.5pt solid #b03028;color:#b03028;padding:5pt 10pt;font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.8pt;font-weight:700;transform:rotate(-2deg);">
+                            FOR ISSUANCE
+                        </div>
+                        <div style="text-align:right;font-family:'JetBrains Mono',monospace;">
+                            <div style="font-size:9pt;letter-spacing:1.4pt;color:#6e6856;font-weight:600;">ISSUED</div>
+                            <div style="font-size:12pt;font-weight:700;color:#1a1d24;letter-spacing:0.5pt;margin-top:3pt;" id="p-date">—</div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- 基本資訊 -->
-                <div style="border-top:1.5pt solid #2d5a9e;border-bottom:1.5pt solid #2d5a9e;padding:9pt 0;margin-bottom:4pt;">
-                    <table class="stable-table" style="font-size:10pt;">
-                        <tr>
-                            <td style="width:80pt;font-weight:bold;color:#000;">建築師身分</td>
-                            <td style="font-weight:900;color:#000;" id="p-archType">—</td>
-                            <td style="width:80pt;font-weight:bold;color:#000;text-align:right;">申請日期</td>
-                            <td style="font-weight:800;text-align:right;color:#000;" id="p-date">—</td>
-                        </tr>
-                        <tr style="height:5pt;"></tr>
-                        <tr id="p-row-homeCounty" style="display:none;">
-                            <td style="font-weight:bold;color:#000;">所屬建築師公會</td>
-                            <td colspan="3" style="font-weight:900;color:#1a8a7a;" id="p-homeCounty">—</td>
-                        </tr>
-                        <tr style="height:3pt;" id="p-row-homeCounty-gap" style="display:none;"></tr>
-                        <tr id="p-row-caseType">
-                            <td style="font-weight:bold;color:#000;">建築物類別</td>
-                            <td style="font-weight:900;color:#000;" id="p-caseType">—</td>
-                            <td style="font-weight:bold;color:#000;text-align:right;">樓地板面積</td>
-                            <td style="font-weight:800;text-align:right;color:#000;"><span id="p-area">—</span> ㎡</td>
-                        </tr>
-                        <tr style="height:5pt;" id="p-row-gap"></tr>
-                        <tr id="p-row-collab" style="display:none;">
-                            <td style="font-weight:bold;color:#000;">設計案類型</td>
-                            <td colspan="3" style="font-weight:900;color:#b45309;" id="p-collab-label">單獨設計案（100%）</td>
-                        </tr>
-                        <tr style="height:2pt;" id="p-row-collab-gap" style="display:none;"></tr>
-                        <tr id="p-row-stage">
-                            <td style="font-weight:bold;color:#000;">繳費階段</td>
-                            <td style="font-weight:900;color:#000;" id="p-stage">—</td>
-                            <td></td><td></td>
-                        </tr>
-                    </table>
-                    <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1pt solid #bfdbfe;border-radius:6pt;padding:7pt 14pt;margin-top:9pt;">
-                        <table class="stable-table">
-                            <tr>
-                                <td style="font-weight:800;font-size:10.5pt;color:#2d5a9e;">總法定工程造價</td>
-                                <td style="text-align:right;font-size:15pt;font-weight:900;font-family:'Courier New',monospace;color:#4a7fc1;">NT$ <span id="p-cost">0</span></td>
-                            </tr>
-                        </table>
+                <!-- ════ 01 PROJECT DATA ════ -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;border:0.75pt solid #1a1d24;margin-bottom:14pt;">
+                    <div style="padding:9pt 12pt;border-right:0.75pt solid #1a1d24;border-bottom:0.5pt solid #beb39a;">
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:9.5pt;letter-spacing:1.4pt;color:#6e6856;font-weight:700;">01 · ARCHITECT TYPE</div>
+                        <div style="font-family:'Noto Sans TC',sans-serif;font-size:13.5pt;font-weight:700;color:#1a1d24;margin-top:5pt;" id="p-archType">—</div>
+                    </div>
+                    <div id="p-row-caseType" style="padding:9pt 12pt;border-bottom:0.5pt solid #beb39a;">
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:9.5pt;letter-spacing:1.4pt;color:#6e6856;font-weight:700;">02 · BUILDING CATEGORY</div>
+                        <div style="font-family:'Noto Sans TC',sans-serif;font-size:13.5pt;font-weight:700;color:#1a1d24;margin-top:5pt;" id="p-caseType">—</div>
+                    </div>
+                    <div id="p-row-homeCounty" style="display:none;padding:9pt 12pt;border-right:0.75pt solid #1a1d24;border-bottom:0.5pt solid #beb39a;grid-column:1/-1;">
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:9.5pt;letter-spacing:1.4pt;color:#6e6856;font-weight:700;">03 · HOME ASSOCIATION (RECIPROCITY)</div>
+                        <div style="font-family:'Noto Sans TC',sans-serif;font-size:13.5pt;font-weight:700;color:#1a1d24;margin-top:5pt;" id="p-homeCounty">—</div>
+                    </div>
+                    <span id="p-row-homeCounty-gap" style="display:none;"></span>
+                    <div id="p-row-collab" style="display:none;padding:9pt 12pt;border-right:0.75pt solid #1a1d24;border-bottom:0.5pt solid #beb39a;">
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:9.5pt;letter-spacing:1.4pt;color:#6e6856;font-weight:700;">04 · PROJECT TYPE</div>
+                        <div style="font-family:'Noto Sans TC',sans-serif;font-size:13.5pt;font-weight:700;color:#b03028;margin-top:5pt;" id="p-collab-label">—</div>
+                    </div>
+                    <span id="p-row-collab-gap" style="display:none;"></span>
+                    <div style="padding:9pt 12pt;border-right:0.75pt solid #1a1d24;">
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:9.5pt;letter-spacing:1.4pt;color:#6e6856;font-weight:700;">05 · FLOOR AREA</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:16pt;font-weight:700;color:#1a1d24;margin-top:5pt;"><span id="p-area">—</span> <span style="font-size:11pt;color:#6e6856;">㎡</span></div>
+                    </div>
+                    <div id="p-row-stage" style="padding:9pt 12pt;">
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:9.5pt;letter-spacing:1.4pt;color:#6e6856;font-weight:700;">06 · PAYMENT STAGE</div>
+                        <div style="font-family:'Noto Sans TC',sans-serif;font-size:13.5pt;font-weight:700;color:#1a1d24;margin-top:5pt;" id="p-stage">—</div>
+                    </div>
+                    <span id="p-row-gap" style="display:none;"></span>
+                </div>
+                <!-- 工程造價 highlight strip -->
+                <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;background:#1a1d24;color:#f4eedf;padding:14pt 18pt;margin-bottom:14pt;border:1pt solid #1a1d24;">
+                    <div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.8pt;opacity:0.7;font-weight:700;">07 · LEGAL CONSTRUCTION COST</div>
+                        <div style="font-family:'Noto Sans TC',sans-serif;font-size:13.5pt;font-weight:700;margin-top:3pt;">總法定工程造價</div>
+                    </div>
+                    <div></div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:28pt;font-weight:700;color:#d4a017;letter-spacing:-0.5pt;">
+                        <span style="font-size:13pt;color:#f4eedf;opacity:0.7;font-weight:500;margin-right:7pt;">NT$</span><span id="p-cost">0</span>
                     </div>
                 </div>
 
                 <!-- 本縣：酬金明細 -->
                 <div id="section-remuneration">
-                    <div class="bar-title">一、 建築師酬金累計計算（最低標費率）</div>
+                    <div class="bar-title"><span style="opacity:0.7;font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.5pt;font-weight:600;">02 ／ REMUNERATION SCHEDULE</span><span>建築師酬金累計計算（最低標費率）</span></div>
                     <div class="section-content" style="background:#f8fbff;">
-                        <table class="stable-table" style="font-size:10pt;">
-                            <tr class="row-line"><td style="padding:5pt 0;color:#000;">300萬以下部分（<span id="p-rate1">5.5</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;color:#000;">$ <span id="p-v1">0</span></td></tr>
-                            <tr class="row-line"><td style="padding:5pt 0;color:#000;">300萬～1,500萬部分（<span id="p-rate2">4.5</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;color:#000;">$ <span id="p-v2">0</span></td></tr>
-                            <tr class="row-line"><td style="padding:5pt 0;color:#000;">1,500萬～6,000萬部分（<span id="p-rate3">4.0</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;color:#000;">$ <span id="p-v3">0</span></td></tr>
-                            <tr><td style="padding:5pt 0;color:#000;">6,000萬以上部分（<span id="p-rate4">3.5</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;color:#000;">$ <span id="p-v4">0</span></td></tr>
+                        <table class="stable-table" style="font-size:12pt;">
+                            <tr class="row-line"><td style="padding:5pt 0;color:#000;">300萬以下部分（<span id="p-rate1">5.5</span>%）</td><td style="text-align:right;font-family:'JetBrains Mono',monospace;color:#1a1d24;font-variant-numeric:tabular-nums;font-size:12.5pt;font-weight:700;">$ <span id="p-v1">0</span></td></tr>
+                            <tr class="row-line"><td style="padding:5pt 0;color:#000;">300萬～1,500萬部分（<span id="p-rate2">4.5</span>%）</td><td style="text-align:right;font-family:'JetBrains Mono',monospace;color:#1a1d24;font-variant-numeric:tabular-nums;font-size:12.5pt;font-weight:700;">$ <span id="p-v2">0</span></td></tr>
+                            <tr class="row-line"><td style="padding:5pt 0;color:#000;">1,500萬～6,000萬部分（<span id="p-rate3">4.0</span>%）</td><td style="text-align:right;font-family:'JetBrains Mono',monospace;color:#1a1d24;font-variant-numeric:tabular-nums;font-size:12.5pt;font-weight:700;">$ <span id="p-v3">0</span></td></tr>
+                            <tr><td style="padding:5pt 0;color:#000;">6,000萬以上部分（<span id="p-rate4">3.5</span>%）</td><td style="text-align:right;font-family:'JetBrains Mono',monospace;color:#1a1d24;font-variant-numeric:tabular-nums;font-size:12.5pt;font-weight:700;">$ <span id="p-v4">0</span></td></tr>
                         </table>
-                        <div style="border:1.5pt solid #4a7fc1;border-radius:6pt;padding:9pt 14pt;margin-top:9pt;background:white;">
-                            <table class="stable-table">
-                                <tr>
-                                    <td style="font-weight:900;font-size:11pt;color:#2d5a9e;">全案法定酬金總額（100%）</td>
-                                    <td style="text-align:right;font-size:15pt;font-weight:900;font-family:'Courier New',monospace;color:#4a7fc1;">$ <span id="p-rem100">0</span></td>
-                                </tr>
-                            </table>
+                        <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;padding:12pt 16pt;margin-top:12pt;background:rgba(29,53,87,0.06);border:0.75pt solid #1d3557;">
+                            <div>
+                                <div style="font-family:'JetBrains Mono',monospace;font-size:9.5pt;letter-spacing:1.6pt;color:#1d3557;font-weight:700;">SUBTOTAL · 全案法定酬金</div>
+                                <div style="font-family:'Noto Sans TC',sans-serif;font-size:12.5pt;font-weight:700;color:#1d3557;margin-top:3pt;">100% Remuneration</div>
+                            </div>
+                            <div></div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:22pt;font-weight:700;color:#1d3557;"><span style="font-size:13pt;opacity:0.7;margin-right:5pt;">$</span><span id="p-rem100">0</span></div>
                         </div>
-                        <div id="p-ownerNote" style="display:none;margin-top:7pt;font-size:8pt;font-weight:800;color:#000;background:#fef2f2;border:1pt solid #fecaca;padding:5pt 10pt;border-radius:5pt;">
-                            ※ 業主另外給付：酬金 × 0.9 倍作為公會代收金額
+                        <div id="p-ownerNote" style="display:none;margin-top:8pt;padding:7pt 12pt;border:0.75pt solid #b03028;background:rgba(176,48,40,0.05);">
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.4pt;color:#b03028;font-weight:700;">※ NOTE · OWNER PAYS DESIGN FEE</div>
+                            <div style="font-family:'Noto Sans TC',sans-serif;font-size:11.5pt;font-weight:600;color:#1a1d24;margin-top:3pt;">業主另外給付：酬金 × 0.9 倍作為公會代收金額</div>
                         </div>
                     </div>
                 </div>
 
                 <!-- 外縣市費用 -->
                 <div id="section-outside" style="display:none;">
-                    <div class="bar-title" style="background:linear-gradient(90deg,#1a6b50,#1a8a7a);">一、 外縣市建築師應繳費用</div>
+                    <div class="bar-title"><span style="opacity:0.7;font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.5pt;font-weight:600;">02 ／ FEES FOR NON-LOCAL ARCHITECT</span><span>外縣市建築師應繳費用</span></div>
                     <div class="section-content" style="background:#f0fdfa;">
-                        <table class="stable-table" style="font-size:10.5pt;">
-                            <tr class="row-line"><td style="padding:8pt 0;color:#000;"><div style="font-weight:800;">事業補助費</div><div style="font-size:8pt;color:#64748b;">總工程造價 × 4/10,000（四捨五入至個位）</div></td><td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-bizFee">0</span></td></tr>
-                            <tr class="row-line"><td style="padding:8pt 0;color:#000;"><div style="font-weight:800;">協審費</div><div style="font-size:8pt;color:#64748b;">總工程造價 × 1/10,000（四捨五入至個位）</div></td><td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-reviewFeeOut">0</span></td></tr>
-                            <tr><td style="padding:8pt 0;color:#000;"><div style="font-weight:800;">行政作業費</div><div style="font-size:8pt;color:#64748b;" id="p-adminOutNote"></div></td><td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-adminOut">0</span></td></tr>
+                        <table class="stable-table" style="font-size:12.5pt;">
+                            <tr class="row-line"><td style="padding:8pt 0;color:#000;"><div style="font-weight:700;font-size:12pt;color:#1a1d24;">事業補助費</div><div style="font-size:10pt;color:#6e6856;font-weight:500;margin-top:2pt;">總工程造價 × 4/10,000（四捨五入至個位）</div></td><td style="text-align:right;font-size:17pt;font-weight:700;font-family:'JetBrains Mono',monospace;color:#1a1d24;font-variant-numeric:tabular-nums;">$ <span id="p-bizFee">0</span></td></tr>
+                            <tr class="row-line"><td style="padding:8pt 0;color:#000;"><div style="font-weight:700;font-size:12pt;color:#1a1d24;">協審費</div><div style="font-size:10pt;color:#6e6856;font-weight:500;margin-top:2pt;">總工程造價 × 1/10,000（四捨五入至個位）</div></td><td style="text-align:right;font-size:17pt;font-weight:700;font-family:'JetBrains Mono',monospace;color:#1a1d24;font-variant-numeric:tabular-nums;">$ <span id="p-reviewFeeOut">0</span></td></tr>
+                            <tr><td style="padding:8pt 0;color:#000;"><div style="font-weight:700;font-size:12pt;color:#1a1d24;">行政作業費</div><div style="font-size:10pt;color:#6e6856;font-weight:500;margin-top:2pt;" id="p-adminOutNote"></div></td><td style="text-align:right;font-size:17pt;font-weight:700;font-family:'JetBrains Mono',monospace;color:#1a1d24;font-variant-numeric:tabular-nums;">$ <span id="p-adminOut">0</span></td></tr>
                         </table>
-                        <div style="background:linear-gradient(90deg,#1a6b50,#1a8a7a);color:white;border-radius:8pt;padding:11pt 14pt;margin-top:10pt;display:flex;justify-content:space-between;align-items:center;">
-                            <span style="font-weight:900;font-size:12pt;">合計應繳金額</span>
-                            <span style="font-size:20pt;font-weight:900;font-family:'Courier New',monospace;">NT$ <span id="p-outsideTotal">0</span></span>
+                        <div style="padding:16pt 20pt;margin-top:14pt;display:grid;grid-template-columns:auto 1fr auto;align-items:center;background:#1a1d24;color:#f4eedf;border:1pt solid #1a1d24;">
+                            <div>
+                                <div style="font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.8pt;opacity:0.7;font-weight:700;">TOTAL · 合計應繳</div>
+                                <div style="font-family:'Noto Sans TC',sans-serif;font-size:14pt;font-weight:700;margin-top:3pt;">合計應繳金額</div>
+                            </div>
+                            <div></div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:32pt;font-weight:700;color:#d4a017;letter-spacing:-0.5pt;">
+                                <span style="font-size:14pt;color:#f4eedf;opacity:0.7;font-weight:500;margin-right:8pt;">NT$</span><span id="p-outsideTotal">0</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="bar-title" style="background:linear-gradient(90deg,#1a6b50,#1a8a7a);">二、 匯款帳戶資訊</div>
-                    <div class="section-content" style="background:#f0fdfa;">
-                        <div style="font-size:11pt;font-weight:800;color:#000;margin-bottom:10pt;text-align:center;">國泰世華銀行（013）新竹分行 ｜ 戶名：社團法人新竹縣建築師公會</div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10pt;font-family:'Courier New',monospace;">
-                            <div style="background:#f0fdfa;border:1.5pt solid #99f6e4;padding:10pt;border-radius:6pt;">
-                                <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#1a8a7a;">事業補助費</div>
-                                <div style="font-weight:900;font-size:13pt;color:#000;">0400350-11228</div>
+                    <div class="bar-title"><span style="opacity:0.7;font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.5pt;font-weight:600;">03 ／ REMITTANCE DETAILS</span><span>匯款帳戶資訊</span></div>
+                    <div class="section-content">
+                        <div style="background:#1a1d24;color:#f4eedf;padding:7pt 12pt;margin:-12pt -14pt 10pt;display:flex;align-items:center;justify-content:space-between;">
+                            <span style="font-family:'JetBrains Mono',monospace;font-size:10.5pt;letter-spacing:1.8pt;opacity:0.8;font-weight:700;">ACCOUNT</span>
+                            <span style="font-family:'Noto Sans TC',sans-serif;font-size:12pt;font-weight:700;letter-spacing:0.5pt;">國泰世華銀行（013）新竹分行 · 社團法人新竹縣建築師公會</span>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border:1pt solid #1a1d24;">
+                            <div style="padding:10pt 12pt;border-right:0.75pt solid #beb39a;">
+                                <div style="font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.2pt;color:#1d3557;font-weight:700;">A · 事業補助費</div>
+                                <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14.5pt;color:#1a1d24;margin-top:4pt;letter-spacing:0.5pt;">0400350-11228</div>
                             </div>
-                            <div style="background:#fefce8;border:1.5pt solid #fde68a;padding:10pt;border-radius:6pt;">
-                                <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#a0520f;">協審費</div>
-                                <div style="font-weight:900;font-size:13pt;color:#000;">0400350-55225</div>
+                            <div style="padding:10pt 12pt;border-right:0.75pt solid #beb39a;">
+                                <div style="font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.2pt;color:#1d3557;font-weight:700;">B · 協審費</div>
+                                <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14.5pt;color:#1a1d24;margin-top:4pt;letter-spacing:0.5pt;">0400350-55225</div>
                             </div>
-                            <div style="background:#faf5ff;border:1.5pt solid #d8b4fe;padding:10pt;border-radius:6pt;">
-                                <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#6b21a8;">行政作業費</div>
-                                <div style="font-weight:900;font-size:13pt;color:#000;">0400350-55217</div>
+                            <div style="padding:10pt 12pt;">
+                                <div style="font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.2pt;color:#1d3557;font-weight:700;">C · 行政作業費</div>
+                                <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14.5pt;color:#1a1d24;margin-top:4pt;letter-spacing:0.5pt;">0400350-55217</div>
                             </div>
                         </div>
-                        <p style="font-size:10pt;color:#dc2626;font-weight:900;margin-top:10pt;">※ 若開立支票，須分別開立。</p>
+                        <p style="font-family:'JetBrains Mono',monospace;font-size:11pt;color:#b03028;font-weight:700;margin-top:14pt;letter-spacing:0.8pt;">※ NOTE · 若開立支票，須分別開立 / Issue separate checks.</p>
                     </div>
                 </div>
-                <table class="stable-table" style="margin-top:10pt;font-size:8pt;color:#94a3b8;font-weight:bold;">
-                    <tr>
-                        <td>列印日期：<span id="p-timestamp2">—</span></td>
-                        <td style="text-align:right;">新竹縣建照掛件費用計算系統 V3.1</td>
-                    </tr>
-                </table>
+                <div style="margin-top:8pt;border:0.75pt solid #1a1d24;display:grid;grid-template-columns:auto 1fr auto auto;font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:0.8pt;color:#1a1d24;font-weight:600;">
+                    <div style="padding:4pt 10pt;border-right:0.5pt solid #beb39a;background:#1a1d24;color:#f4eedf;font-weight:700;">PRINTED</div>
+                    <div style="padding:4pt 10pt;border-right:0.5pt solid #beb39a;font-weight:600;"><span id="p-timestamp2">—</span></div>
+                    <div style="padding:4pt 10pt;border-right:0.5pt solid #beb39a;color:#6e6856;">HSINCHU COUNTY ARCH. ASSOC. · FEE STATEMENT</div>
+                    <div style="padding:4pt 10pt;font-weight:700;background:#f4eedf;">V 3.4 · A-001</div>
+                </div>
 
-                <div style="text-align:center;color:#94a3b8;font-size:8pt;padding-top:8pt;margin-top:auto;" id="page1-footer">（第一頁，續接第二頁）</div>
+                <div id="page1-footer" style="margin-top:auto;padding-top:12pt;text-align:center;font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.8pt;color:#a39c87;font-weight:600;">— CONTINUED ON SHEET 02 ／ 續接第二頁 —</div>
             </div>
         </div>
 
@@ -549,110 +1237,117 @@
         <div class="a4-page" id="page2">
             <div class="receipt-border">
 
-                <div class="bar-title" style="margin-top:0;" id="p-hangTitle">二、 本次應繳款項</div>
+                <div class="bar-title" style="margin-top:0;" id="p-hangTitle"><span style="opacity:0.7;font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.5pt;font-weight:600;">03 ／ AMOUNT DUE</span><span>本次應繳款項</span></div>
                 <div class="section-content" style="background:#f8fbff;">
-                    <table class="stable-table" style="font-size:10.5pt;">
+                    <table class="stable-table" style="font-size:12.5pt;">
                         <tr class="row-line" id="row-designFee">
                             <td style="padding:8pt 0;">
                                 <div style="font-weight:800;color:#000;" id="p-designFeeLabel">設計費酬金</div>
-                                <div style="font-size:8pt;color:#64748b;" id="p-designFee-note"></div>
+                                <div style="font-size:10pt;color:#6e6856;font-weight:500;margin-top:2pt;" id="p-designFee-note"></div>
                             </td>
-                            <td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-designFee">0</span></td>
+                            <td style="text-align:right;font-size:17pt;font-weight:700;font-family:'JetBrains Mono',monospace;color:#1a1d24;font-variant-numeric:tabular-nums;">$ <span id="p-designFee">0</span></td>
                         </tr>
                         <tr class="row-line" id="row-bizFeeLocal">
                             <td style="padding:8pt 0;">
                                 <div style="font-weight:800;color:#000;">事業費</div>
-                                <div style="font-size:8pt;color:#64748b;">總工程造價 × 4/10,000（四捨五入至個位）</div>
+                                <div style="font-size:10pt;color:#6e6856;font-weight:500;margin-top:2pt;">總工程造價 × 4/10,000（四捨五入至個位）</div>
                             </td>
-                            <td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-bizFeeLocal">0</span></td>
+                            <td style="text-align:right;font-size:17pt;font-weight:700;font-family:'JetBrains Mono',monospace;color:#1a1d24;font-variant-numeric:tabular-nums;">$ <span id="p-bizFeeLocal">0</span></td>
                         </tr>
                         <tr class="row-line" id="row-reviewFee">
                             <td style="padding:8pt 0;">
                                 <div style="font-weight:800;color:#000;" id="p-reviewFeeLabel">協檢費</div>
-                                <div style="font-size:8pt;color:#64748b;" id="p-reviewFee-note"></div>
+                                <div style="font-size:10pt;color:#6e6856;font-weight:500;margin-top:2pt;" id="p-reviewFee-note"></div>
                             </td>
-                            <td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-reviewFee">0</span></td>
+                            <td style="text-align:right;font-size:17pt;font-weight:700;font-family:'JetBrains Mono',monospace;color:#1a1d24;font-variant-numeric:tabular-nums;">$ <span id="p-reviewFee">0</span></td>
                         </tr>
                         <tr id="row-admin">
                             <td style="padding:8pt 0;">
                                 <div style="font-weight:800;color:#000;">行政作業費</div>
-                                <div style="font-size:8pt;color:#64748b;" id="p-admin-note"></div>
+                                <div style="font-size:10pt;color:#6e6856;font-weight:500;margin-top:2pt;" id="p-admin-note"></div>
                             </td>
-                            <td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-admin">0</span></td>
+                            <td style="text-align:right;font-size:17pt;font-weight:700;font-family:'JetBrains Mono',monospace;color:#1a1d24;font-variant-numeric:tabular-nums;">$ <span id="p-admin">0</span></td>
                         </tr>
                     </table>
-                    <div id="p-total-bar" style="border-radius:8pt;padding:11pt 14pt;margin-top:11pt;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#2d5a9e,#4a7fc1);color:white;">
-                        <span style="font-weight:900;font-size:12pt;" id="p-total-label">本次應繳小計</span>
-                        <span style="font-size:20pt;font-weight:900;font-family:'Courier New',monospace;">NT$ <span id="p-stageTotal">0</span></span>
+                    <div id="p-total-bar" style="padding:16pt 20pt;margin-top:14pt;display:grid;grid-template-columns:auto 1fr auto;align-items:center;background:#1a1d24;color:#f4eedf;border:1pt solid #1a1d24;">
+                        <div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.8pt;opacity:0.7;font-weight:700;">TOTAL · 本次應繳</div>
+                            <div style="font-family:'Noto Sans TC',sans-serif;font-size:14pt;font-weight:700;margin-top:3pt;" id="p-total-label">小計</div>
+                        </div>
+                        <div></div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:32pt;font-weight:700;color:#d4a017;letter-spacing:-0.5pt;">
+                            <span style="font-size:14pt;color:#f4eedf;opacity:0.7;font-weight:500;margin-right:8pt;">NT$</span><span id="p-stageTotal">0</span>
+                        </div>
                     </div>
                 </div>
 
                 <!-- 匯款帳戶 -->
-                <div style="margin-top:auto;border:1.5pt solid #2d5a9e;border-radius:8pt;padding:14pt 16pt;">
-                    <div style="text-align:center;font-weight:900;font-size:12pt;border-bottom:1pt solid #cbd5e1;padding-bottom:7pt;margin-bottom:9pt;color:#2d5a9e;">
-                        國泰世華銀行（013）新竹分行 ｜ 戶名：社團法人新竹縣建築師公會
+                <div style="margin-top:14pt;border:1pt solid #1a1d24;">
+                    <div style="background:#1a1d24;color:#f4eedf;padding:7pt 12pt;display:flex;align-items:center;justify-content:space-between;">
+                        <span style="font-family:'JetBrains Mono',monospace;font-size:10.5pt;letter-spacing:1.8pt;opacity:0.8;font-weight:700;">04 ／ REMITTANCE ACCOUNTS</span>
+                        <span style="font-family:'Noto Sans TC',sans-serif;font-size:12pt;font-weight:700;letter-spacing:0.5pt;">國泰世華銀行（013）新竹分行 · 戶名：社團法人新竹縣建築師公會</span>
                     </div>
-                    <div id="bank-local" style="display:grid;grid-template-columns:1fr 1fr;gap:9pt;font-family:'Courier New',monospace;">
-                        <div style="background:#eff6ff;padding:7pt;border-radius:5pt;border:1pt solid #bfdbfe;">
-                            <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#4a7fc1;" id="bank-design-label">掛件70%設計費</div>
-                            <div style="font-weight:900;font-size:13pt;color:#000;" id="bank-design-acc">0400350-22211</div>
+                    <div id="bank-local" style="display:grid;grid-template-columns:1fr 1fr;">
+                        <div style="padding:10pt 12pt;border-right:0.75pt solid #beb39a;border-bottom:0.75pt solid #beb39a;">
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.2pt;color:#1d3557;font-weight:700;" id="bank-design-label">A · 掛件70%設計費</div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16pt;color:#1a1d24;margin-top:4pt;letter-spacing:0.5pt;" id="bank-design-acc">0400350-22211</div>
                         </div>
-                        <div style="background:#ecfdf5;padding:7pt;border-radius:5pt;border:1pt solid #a7f3d0;">
-                            <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#1a8a7a;">事業費</div>
-                            <div style="font-weight:900;font-size:13pt;color:#000;">0400350-11228</div>
+                        <div style="padding:10pt 12pt;border-bottom:0.75pt solid #beb39a;">
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.2pt;color:#1d3557;font-weight:700;">B · 事業費</div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16pt;color:#1a1d24;margin-top:4pt;letter-spacing:0.5pt;">0400350-11228</div>
                         </div>
-                        <div style="background:#fefce8;padding:7pt;border-radius:5pt;border:1pt solid #fde68a;">
-                            <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#a0520f;">協檢費</div>
-                            <div style="font-weight:900;font-size:13pt;color:#000;">0400350-55225</div>
+                        <div style="padding:10pt 12pt;border-right:0.75pt solid #beb39a;border-bottom:0.75pt solid #beb39a;">
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.2pt;color:#1d3557;font-weight:700;">C · 協檢費</div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16pt;color:#1a1d24;margin-top:4pt;letter-spacing:0.5pt;">0400350-55225</div>
                         </div>
-                        <div style="background:#faf5ff;padding:7pt;border-radius:5pt;border:1pt solid #d8b4fe;">
-                            <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#6b21a8;">行政作業費</div>
-                            <div style="font-weight:900;font-size:13pt;color:#000;">0400350-55217</div>
+                        <div style="padding:10pt 12pt;border-bottom:0.75pt solid #beb39a;">
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.2pt;color:#1d3557;font-weight:700;">D · 行政作業費</div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16pt;color:#1a1d24;margin-top:4pt;letter-spacing:0.5pt;">0400350-55217</div>
                         </div>
-                        <div style="background:#f0fdf4;padding:7pt;border-radius:5pt;border:1pt solid #bbf7d0;" id="bank-extra-box">
-                            <div style="font-weight:800;font-size:11pt;margin-bottom:4pt;color:#1a6b50;" id="bank-extra-label">領照30%設計費</div>
-                            <div style="font-weight:900;font-size:13pt;color:#000;" id="bank-extra-acc">0400350-22220</div>
+                        <div id="bank-extra-box" style="padding:10pt 12pt;border-right:0.75pt solid #beb39a;grid-column:1/-1;">
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.2pt;color:#b03028;font-weight:700;" id="bank-extra-label">E · 領照30%設計費</div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16pt;color:#1a1d24;margin-top:4pt;letter-spacing:0.5pt;" id="bank-extra-acc">0400350-22220</div>
                         </div>
                     </div>
                 </div>
 
-                <p style="font-size:10pt;color:#dc2626;font-weight:900;margin-top:10pt;">※ 若開立支票，須分別開立。</p>
-                <table class="stable-table" style="margin-top:6pt;font-size:7pt;color:#94a3b8;font-weight:bold;">
-                    <tr>
-                        <td>列印日期：<span id="p-timestamp">—</span></td>
-                        <td style="text-align:right;">新竹縣建照掛件費用計算系統 V3.1</td>
-                    </tr>
-                </table>
+                <p style="font-family:'JetBrains Mono',monospace;font-size:11pt;color:#b03028;font-weight:700;margin-top:12pt;letter-spacing:0.8pt;">※ NOTE · 若開立支票，須分別開立 / Issue separate checks.</p>
+                <div style="margin-top:8pt;border:0.75pt solid #1a1d24;display:grid;grid-template-columns:auto 1fr auto auto;font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:0.8pt;color:#1a1d24;font-weight:600;">
+                    <div style="padding:4pt 10pt;border-right:0.5pt solid #beb39a;background:#1a1d24;color:#f4eedf;font-weight:700;">PRINTED</div>
+                    <div style="padding:4pt 10pt;border-right:0.5pt solid #beb39a;font-weight:600;"><span id="p-timestamp">—</span></div>
+                    <div style="padding:4pt 10pt;border-right:0.5pt solid #beb39a;color:#6e6856;">HSINCHU COUNTY ARCH. ASSOC. · FEE STATEMENT</div>
+                    <div style="padding:4pt 10pt;font-weight:700;background:#f4eedf;">V 3.4 · A-002</div>
+                </div>
             </div>
         </div>
 
         <!-- 外縣市匯款頁 -->
         <div class="a4-page" id="page-outside-bank" style="display:none;">
             <div class="receipt-border">
-                <div class="bar-title" style="margin-top:0;background:linear-gradient(90deg,#1a6b50,#1a8a7a);">二、 匯款帳戶資訊</div>
-                <div class="section-content" style="background:#f0fdfa;">
-                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12pt;font-family:'Courier New',monospace;margin-top:10pt;">
-                        <div style="background:#f0fdfa;border:1.5pt solid #99f6e4;padding:12pt;border-radius:6pt;">
-                            <div style="font-weight:800;font-size:12pt;margin-bottom:5pt;color:#1a8a7a;">事業補助費</div>
-                            <div style="font-weight:900;font-size:14pt;color:#000;">0400350-11228</div>
+                <div class="bar-title" style="margin-top:0;"><span style="opacity:0.7;font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:1.5pt;font-weight:600;">03 ／ REMITTANCE DETAILS</span><span>匯款帳戶資訊</span></div>
+                <div class="section-content">
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;margin-top:6pt;border:1pt solid #1a1d24;">
+                        <div style="padding:14pt;border-right:0.75pt solid #beb39a;">
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:10.5pt;letter-spacing:1.2pt;color:#1d3557;font-weight:700;">A · 事業補助費</div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:17pt;color:#1a1d24;margin-top:5pt;letter-spacing:0.5pt;">0400350-11228</div>
                         </div>
-                        <div style="background:#fefce8;border:1.5pt solid #fde68a;padding:12pt;border-radius:6pt;">
-                            <div style="font-weight:800;font-size:12pt;margin-bottom:5pt;color:#a0520f;">協審費</div>
-                            <div style="font-weight:900;font-size:14pt;color:#000;">0400350-55225</div>
+                        <div style="padding:14pt;border-right:0.75pt solid #beb39a;">
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:10.5pt;letter-spacing:1.2pt;color:#1d3557;font-weight:700;">B · 協審費</div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:17pt;color:#1a1d24;margin-top:5pt;letter-spacing:0.5pt;">0400350-55225</div>
                         </div>
-                        <div style="background:#faf5ff;border:1.5pt solid #d8b4fe;padding:12pt;border-radius:6pt;">
-                            <div style="font-weight:800;font-size:12pt;margin-bottom:5pt;color:#6b21a8;">行政作業費</div>
-                            <div style="font-weight:900;font-size:14pt;color:#000;">0400350-55217</div>
+                        <div style="padding:14pt;">
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:10.5pt;letter-spacing:1.2pt;color:#1d3557;font-weight:700;">C · 行政作業費</div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:17pt;color:#1a1d24;margin-top:5pt;letter-spacing:0.5pt;">0400350-55217</div>
                         </div>
                     </div>
-                    <p style="font-size:11pt;color:#dc2626;font-weight:900;margin-top:12pt;">※ 若開立支票，須分別開立。</p>
+                    <p style="font-family:'JetBrains Mono',monospace;font-size:11pt;color:#b03028;font-weight:700;margin-top:14pt;letter-spacing:0.8pt;">※ NOTE · 若開立支票，須分別開立 / Issue separate checks if paying by check.</p>
                 </div>
-                <table class="stable-table" style="margin-top:10pt;font-size:8pt;color:#94a3b8;font-weight:bold;">
-                    <tr>
-                        <td>列印日期：<span id="p-timestamp3">—</span></td>
-                        <td style="text-align:right;">新竹縣建照掛件費用計算系統 V3.1</td>
-                    </tr>
-                </table>
+                <div style="margin-top:8pt;border:0.75pt solid #1a1d24;display:grid;grid-template-columns:auto 1fr auto auto;font-family:'JetBrains Mono',monospace;font-size:10pt;letter-spacing:0.8pt;color:#1a1d24;font-weight:600;">
+                    <div style="padding:4pt 10pt;border-right:0.5pt solid #beb39a;background:#1a1d24;color:#f4eedf;font-weight:700;">PRINTED</div>
+                    <div style="padding:4pt 10pt;border-right:0.5pt solid #beb39a;font-weight:600;"><span id="p-timestamp3">—</span></div>
+                    <div style="padding:4pt 10pt;border-right:0.5pt solid #beb39a;color:#6e6856;">HSINCHU COUNTY ARCH. ASSOC. · REMITTANCE</div>
+                    <div style="padding:4pt 10pt;font-weight:700;background:#f4eedf;">V 3.4 · A-003</div>
+                </div>
             </div>
         </div>
 
@@ -756,10 +1451,9 @@ function selectType(type) {
 
     document.getElementById('card-local').className   = 'id-card' + (isLocal ? ' selected-local'   : '');
     document.getElementById('card-outside').className = 'id-card' + (!isLocal ? ' selected-outside' : '');
-    document.getElementById('radio-local').className   = 'w-5 h-5 rounded-full border-2 flex items-center justify-center mt-1 flex-shrink-0 ' + (isLocal ? 'border-blue-600' : 'border-slate-400');
-    document.getElementById('radio-local').innerHTML   = isLocal ? '<div class="w-2.5 h-2.5 rounded-full bg-blue-600"></div>' : '<div class="w-2.5 h-2.5 rounded-full bg-transparent"></div>';
-    document.getElementById('radio-outside').className = 'w-5 h-5 rounded-full border-2 flex items-center justify-center mt-1 flex-shrink-0 ' + (!isLocal ? 'border-teal-600' : 'border-slate-400');
-    document.getElementById('radio-outside').innerHTML = !isLocal ? '<div class="w-2.5 h-2.5 rounded-full bg-teal-600"></div>' : '<div class="w-2.5 h-2.5 rounded-full bg-transparent"></div>';
+    // radio styling handled via CSS (.id-card.selected-* .id-radio::after) — no JS class changes needed
+    document.getElementById('radio-local').className = 'id-radio';
+    document.getElementById('radio-outside').className = 'id-radio';
 
     ['block-caseType','block-area'].forEach(id => {
         document.getElementById(id).style.display = '';
@@ -979,14 +1673,12 @@ function calculateAll() {
         document.getElementById('p-admin-note').innerText     = incOther?adminNote(cost):'（領照階段不收）';
         document.getElementById('p-stageTotal').innerText     = fmt(stageTotal);
 
-        const titleMap = {'70':'二、 掛件時應繳款項（70%）','30':'二、 領照時應繳款項（30%）','100':'二、 本次應繳款項（一次繳清 100%）'};
-        document.getElementById('p-hangTitle').innerText    = titleMap[payStage];
+        const titleMap = {'70':'掛件時應繳款項 · 70%','30':'領照時應繳款項 · 30%','100':'本次應繳款項 · 一次繳清 100%'};
+        document.getElementById('p-hangTitle').innerHTML    = '<span style="opacity:0.6;font-family:\'JetBrains Mono\',monospace;font-size:9pt;letter-spacing:1.8pt;font-weight:500;">03 ／ AMOUNT DUE</span><span>' + titleMap[payStage] + '</span>';
         document.getElementById('p-total-label').innerText  = payStage==='30'?'領照應繳小計':'掛件應繳小計';
 
-        const barBg = payStage==='30'
-            ? 'linear-gradient(135deg,#064e3b,#1a6b50)'
-            : 'linear-gradient(135deg,#2d5a9e,#4a7fc1)';
-        document.getElementById('p-total-bar').style.background = barBg;
+        document.getElementById('p-total-bar').style.background = '#1a1d24';
+        document.getElementById('p-total-bar').style.color = '#f4eedf';
 
         const accMap   = {'70':'0400350-22211','30':'0400350-22220','100':'0400350-22211'};
         const lblMap   = {'70':'掛件70%設計費','30':'領照30%設計費','100':'設計費（全額）'};
@@ -1002,10 +1694,11 @@ function calculateAll() {
 
         document.getElementById('quick-label').innerText      = '全案酬金（100%）：';
         document.getElementById('quick-rem').innerText        = `NT$ ${fmt(rem100)}`;
-        document.getElementById('quick-stage-row').className  = '';
+        document.getElementById('quick-stage-row').className  = 'cell';
+        document.getElementById('quick-stage-row').style.display = 'flex';
         document.getElementById('quick-stage-label').innerText= `本次應繳（${STAGE_NAMES[payStage]}）：`;
         document.getElementById('quick-stage-val').innerText  = `NT$ ${fmt(stageTotal)}`;
-        document.getElementById('owner-badge').className      = isOwner?'ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold':'hidden';
+        (() => { const b = document.getElementById('owner-badge'); b.className = 'owner-flag'; b.style.display = isOwner ? 'inline-block' : 'none'; })();
 
     } else {
         document.getElementById('page1-footer').style.display      = 'none';
@@ -1079,8 +1772,9 @@ function calculateAll() {
 
         document.getElementById('quick-label').innerText      = '合計應繳：';
         document.getElementById('quick-rem').innerText        = `NT$ ${fmt(outsideTotal)}`;
-        document.getElementById('quick-stage-row').className  = 'hidden';
-        document.getElementById('owner-badge').className      = 'hidden';
+        document.getElementById('quick-stage-row').className  = '';
+        document.getElementById('quick-stage-row').style.display = 'none';
+        (() => { const b = document.getElementById('owner-badge'); b.style.display = 'none'; })();
     }
 
     const ts = now.toLocaleDateString('zh-TW');
