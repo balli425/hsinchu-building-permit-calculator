@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>新竹縣建照申請掛件費用計算系統 V3.5</title>
+    <title>新竹縣建照申請掛件費用計算系統 V4.4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -176,7 +176,8 @@
     <header class="site-header text-center no-print">
         <div class="inline-block bg-white bg-opacity-20 text-white px-5 py-1 rounded-full text-xs font-bold mb-3 tracking-widest backdrop-blur-sm" style="border:1px solid rgba(255,255,255,0.3);">社團法人新竹縣建築師公會</div>
         <h1 class="text-3xl font-black text-white" style="text-shadow:0 2px 8px rgba(0,0,0,0.3);">建照申請掛件費用計算系統</h1>
-        <p class="text-blue-100 mt-2 text-sm opacity-90">依據新竹縣建築師酬金標準表及協檢作業收費標準自動計算 ｜ V3.5 (2026/7/16更新造價標準)</p>
+        <p class="text-blue-100 mt-2 text-sm opacity-90">依據新竹縣建築師酬金標準表及協檢作業收費標準自動計算 ｜ V4.4 (2026/8/5 PDF 金額欄字重加粗)</p>
+        <p class="text-white mt-2 text-sm font-black" style="letter-spacing:2px;text-shadow:0 1px 4px rgba(0,0,0,0.25);">築匠建築師事務所 製作</p>
     </header>
 
     <!-- STEP 1 -->
@@ -213,7 +214,7 @@
                         <div class="text-sm text-slate-600 mt-1">不繳設計費，依工程造價繳交事業補助費及協審費</div>
                         <div class="mt-2 flex flex-wrap gap-1">
                             <span class="bg-teal-100 text-teal-700 text-xs px-2 py-0.5 rounded-full font-bold">事業補助費 4/10,000</span>
-                            <span class="bg-teal-100 text-teal-700 text-xs px-2 py-0.5 rounded-full font-bold">協審費 1/10,000</span>
+                            <span class="bg-teal-100 text-teal-700 text-xs px-2 py-0.5 rounded-full font-bold">協審費 6/10,000（平等互惠取高者）</span>
                             <span class="bg-teal-100 text-teal-700 text-xs px-2 py-0.5 rounded-full font-bold">行政作業費</span>
                         </div>
                     </div>
@@ -296,7 +297,7 @@
                 <!-- 構造類別 -->
                 <div id="block-structure">
                     <label class="block text-xs font-bold text-slate-500 mb-1">構造類別（對照法定造價表，供確認用）</label>
-                    <select id="structureType" onchange="updateRefCost()"
+                    <select id="structureType" onchange="updateRefCost(); calculateAll();"
                         class="w-full px-3 py-2.5 border-2 border-slate-200 rounded-xl bg-slate-50 font-bold outline-none focus:border-blue-500 transition-colors">
                         <option value="5600">鋼骨或鋼筋混凝土 五層以下（5,600元/㎡）</option>
                         <option value="6700">鋼骨或鋼筋混凝土 六至十層（6,700元/㎡）</option>
@@ -328,17 +329,34 @@
                     <p id="refCostHint" class="text-xs text-slate-400 mt-1"></p>
                 </div>
 
+                <!-- 附屬工程項目 -->
+                <div id="block-extras" class="pt-3 border-t border-slate-100">
+                    <!-- 外縣市：建物本體造價手填（外縣市無構造類別下拉，無單價可乘） -->
+                    <div id="block-mainCost" style="display:none;" class="mb-3">
+                        <label class="block text-xs font-bold text-slate-500 mb-1">建物本體法定造價（元）</label>
+                        <div class="flex gap-2 items-center">
+                            <span class="text-slate-600 font-bold flex-shrink-0">NT$</span>
+                            <input type="text" id="input-mainCost" inputmode="numeric" placeholder="請輸入建物本體法定造價"
+                                class="num-input flex-1"
+                                oninput="onExtraNum('mainCost','amount',this,false)">
+                        </div>
+                    </div>
+
+                    <label class="block text-xs font-bold text-slate-500 mb-2">附屬工程項目（有才勾選，勾選後填入數量與單價）</label>
+                    <div id="extras-list" class="space-y-2"></div>
+                </div>
+
                 <!-- 工程造價 -->
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1">總法定工程造價（元，建築師自行填入）</label>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">總法定工程造價（自動計算，四捨五入至千位）</label>
                     <div class="flex gap-2 items-center">
                         <span class="text-slate-600 font-bold flex-shrink-0">NT$</span>
-                        <input type="text" id="input-cost" inputmode="numeric" placeholder="請輸入工程造價"
+                        <input type="text" id="input-cost" inputmode="numeric" placeholder="請先填入上方項目"
                             class="num-input cost-style flex-1"
-                            oninput="handleInput('cost')"
-                            onblur="handleBlur('cost')"
-                            onfocus="handleFocus('cost')">
+                            readonly
+                            style="background:#f1f5f9;cursor:default;">
                     </div>
+                    <p id="costBreakdown" class="text-xs text-slate-500 mt-1.5 leading-relaxed"></p>
                 </div>
 
                 <!-- 業主另外給付 -->
@@ -467,6 +485,12 @@
                             <td></td><td></td>
                         </tr>
                     </table>
+                    <div id="p-costDetailWrap" style="display:none;margin-top:9pt;">
+                        <div style="font-size:9pt;font-weight:900;color:#2d5a9e;margin-bottom:3pt;">工程造價明細</div>
+                        <table class="stable-table" style="font-size:9pt;border:1pt solid #bfdbfe;border-radius:5pt;">
+                            <tbody id="p-costDetailBody"></tbody>
+                        </table>
+                    </div>
                     <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1pt solid #bfdbfe;border-radius:6pt;padding:7pt 14pt;margin-top:9pt;">
                         <table class="stable-table">
                             <tr>
@@ -482,10 +506,10 @@
                     <div class="bar-title">一、 建築師酬金累計計算（最低標費率）</div>
                     <div class="section-content" style="background:#f8fbff;">
                         <table class="stable-table" style="font-size:10pt;">
-                            <tr class="row-line"><td style="padding:5pt 0;color:#000;">300萬以下部分（<span id="p-rate1">5.5</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;color:#000;">$ <span id="p-v1">0</span></td></tr>
-                            <tr class="row-line"><td style="padding:5pt 0;color:#000;">300萬～1,500萬部分（<span id="p-rate2">4.5</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;color:#000;">$ <span id="p-v2">0</span></td></tr>
-                            <tr class="row-line"><td style="padding:5pt 0;color:#000;">1,500萬～6,000萬部分（<span id="p-rate3">4.0</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;color:#000;">$ <span id="p-v3">0</span></td></tr>
-                            <tr><td style="padding:5pt 0;color:#000;">6,000萬以上部分（<span id="p-rate4">3.5</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;color:#000;">$ <span id="p-v4">0</span></td></tr>
+                            <tr class="row-line"><td style="padding:5pt 0;color:#000;">300萬以下部分（<span id="p-rate1">5.5</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;font-weight:900;color:#000;">$ <span id="p-v1">0</span></td></tr>
+                            <tr class="row-line"><td style="padding:5pt 0;color:#000;">300萬～1,500萬部分（<span id="p-rate2">4.5</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;font-weight:900;color:#000;">$ <span id="p-v2">0</span></td></tr>
+                            <tr class="row-line"><td style="padding:5pt 0;color:#000;">1,500萬～6,000萬部分（<span id="p-rate3">4.0</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;font-weight:900;color:#000;">$ <span id="p-v3">0</span></td></tr>
+                            <tr><td style="padding:5pt 0;color:#000;">6,000萬以上部分（<span id="p-rate4">3.5</span>%）</td><td style="text-align:right;font-family:'Courier New',monospace;font-weight:900;color:#000;">$ <span id="p-v4">0</span></td></tr>
                         </table>
                         <div style="border:1.5pt solid #4a7fc1;border-radius:6pt;padding:9pt 14pt;margin-top:9pt;background:white;">
                             <table class="stable-table">
@@ -507,7 +531,7 @@
                     <div class="section-content" style="background:#f0fdfa;">
                         <table class="stable-table" style="font-size:10.5pt;">
                             <tr class="row-line"><td style="padding:8pt 0;color:#000;"><div style="font-weight:800;">事業補助費</div><div style="font-size:8pt;color:#64748b;">總工程造價 × 4/10,000（四捨五入至個位）</div></td><td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-bizFee">0</span></td></tr>
-                            <tr class="row-line"><td style="padding:8pt 0;color:#000;"><div style="font-weight:800;">協審費</div><div style="font-size:8pt;color:#64748b;">總工程造價 × 1/10,000（四捨五入至個位）</div></td><td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-reviewFeeOut">0</span></td></tr>
+                            <tr class="row-line"><td style="padding:8pt 0;color:#000;"><div style="font-weight:800;">協審費</div><div style="font-size:8pt;color:#64748b;" id="p-reviewFeeOutNote">依新竹縣費率：造價×6/10,000（下限2,000上限50,000，取百位）</div></td><td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-reviewFeeOut">0</span></td></tr>
                             <tr><td style="padding:8pt 0;color:#000;"><div style="font-weight:800;">行政作業費</div><div style="font-size:8pt;color:#64748b;" id="p-adminOutNote"></div></td><td style="text-align:right;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;color:#000;">$ <span id="p-adminOut">0</span></td></tr>
                         </table>
                         <div style="background:linear-gradient(90deg,#1a6b50,#1a8a7a);color:white;border-radius:8pt;padding:11pt 14pt;margin-top:10pt;display:flex;justify-content:space-between;align-items:center;">
@@ -535,14 +559,15 @@
                         <p style="font-size:10pt;color:#dc2626;font-weight:900;margin-top:10pt;">※ 若開立支票，須分別開立。</p>
                     </div>
                 </div>
-                <table class="stable-table" style="margin-top:10pt;font-size:8pt;color:#94a3b8;font-weight:bold;">
-                    <tr>
-                        <td>列印日期：<span id="p-timestamp2">—</span></td>
-                        <td style="text-align:right;">新竹縣建照掛件費用計算系統 V3.5</td>
-                    </tr>
-                </table>
-
-                <div style="text-align:center;color:#94a3b8;font-size:8pt;padding-top:8pt;margin-top:auto;" id="page1-footer">（第一頁，續接第二頁）</div>
+                <div style="padding-top:8pt;margin-top:auto;" id="page1-footer">
+                    <div id="page1-continue" style="text-align:center;color:#2d5a9e;font-size:10pt;font-weight:bold;margin-bottom:5pt;">（第一頁，續接第二頁）</div>
+                    <table class="stable-table" style="font-size:10pt;color:#2d5a9e;font-weight:bold;">
+                        <tr>
+                            <td>列印日期：<span id="p-timestamp4">—</span></td>
+                            <td style="text-align:right;">新竹縣建照掛件費用計算系統 V4.4　｜　<span style="color:#00A1E9;font-weight:900;">築匠建築師事務所 製作</span></td>
+                        </tr>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -618,10 +643,10 @@
                 </div>
 
                 <p style="font-size:10pt;color:#dc2626;font-weight:900;margin-top:10pt;">※ 若開立支票，須分別開立。</p>
-                <table class="stable-table" style="margin-top:6pt;font-size:7pt;color:#94a3b8;font-weight:bold;">
+                <table class="stable-table" style="margin-top:6pt;font-size:10pt;color:#2d5a9e;font-weight:bold;">
                     <tr>
                         <td>列印日期：<span id="p-timestamp">—</span></td>
-                        <td style="text-align:right;">新竹縣建照掛件費用計算系統 V3.5</td>
+                        <td style="text-align:right;">新竹縣建照掛件費用計算系統 V4.4　｜　<span style="color:#00A1E9;font-weight:900;">築匠建築師事務所 製作</span></td>
                     </tr>
                 </table>
             </div>
@@ -648,10 +673,10 @@
                     </div>
                     <p style="font-size:11pt;color:#dc2626;font-weight:900;margin-top:12pt;">※ 若開立支票，須分別開立。</p>
                 </div>
-                <table class="stable-table" style="margin-top:10pt;font-size:8pt;color:#94a3b8;font-weight:bold;">
+                <table class="stable-table" style="margin-top:10pt;font-size:10pt;color:#2d5a9e;font-weight:bold;">
                     <tr>
                         <td>列印日期：<span id="p-timestamp3">—</span></td>
-                        <td style="text-align:right;">新竹縣建照掛件費用計算系統 V3.5</td>
+                        <td style="text-align:right;">新竹縣建照掛件費用計算系統 V4.4　｜　<span style="color:#00A1E9;font-weight:900;">築匠建築師事務所 製作</span></td>
                     </tr>
                 </table>
             </div>
@@ -738,6 +763,183 @@ function getNumVal(id) {
 }
 
 // ═══════════════════════════════════════════
+//  附屬工程項目
+// ═══════════════════════════════════════════
+const EXTRA_ITEMS = [
+    { id:'wall',      name:'圍牆',        mode:'qty',  unit:'公尺',     priceUnit:'元/公尺',     defPrice:1900 },
+    { id:'ditchOpen', name:'明溝排水溝',   mode:'qty',  unit:'公尺',     priceUnit:'元/公尺',     defPrice:'' },
+    { id:'ditchHid',  name:'暗溝排水溝',   mode:'qty',  unit:'公尺',     priceUnit:'元/公尺',     defPrice:'' },
+    { id:'earth',     name:'土方（明挖）', mode:'qty',  unit:'立方公尺', priceUnit:'元/立方公尺', defPrice:'' },
+    { id:'other1',    name:'其他（自填項目）', mode:'lump' },
+    { id:'other2',    name:'其他（自填項目）', mode:'lump' }
+];
+
+// 各項目輸入暫存（mainCost 為外縣市的建物本體造價）
+const extraVals = { mainCost:{ qty:'', price:'', amount:'', name:'' } };
+EXTRA_ITEMS.forEach(it => extraVals[it.id] = { qty:'', price:'', amount:'', name:'' });
+
+function buildExtrasUI() {
+    const wrap = document.getElementById('extras-list');
+    wrap.innerHTML = EXTRA_ITEMS.map(it => {
+        const fields = it.mode === 'qty'
+            ? `<div class="flex gap-1.5 items-center flex-wrap">
+                   <input type="text" inputmode="decimal" id="ex-qty-${it.id}" placeholder="數量"
+                       class="num-input" style="width:105px;" oninput="onExtraNum('${it.id}','qty',this,true)">
+                   <span class="text-xs font-bold text-slate-500">${it.unit}</span>
+                   <span class="text-slate-400 font-black">×</span>
+                   <input type="text" inputmode="numeric" id="ex-price-${it.id}" placeholder="單價"
+                       class="num-input" style="width:105px;" oninput="onExtraNum('${it.id}','price',this,false)">
+                   <span class="text-xs font-bold text-slate-500">${it.priceUnit}</span>
+                   <span class="text-slate-400 font-black">＝</span>
+                   <span class="text-sm font-black text-blue-700 whitespace-nowrap">NT$ <span id="ex-sub-${it.id}">0</span></span>
+               </div>`
+            : `<div class="flex gap-1.5 items-center flex-wrap">
+                   <input type="text" id="ex-name-${it.id}" placeholder="項目名稱（自填）"
+                       class="px-2.5 py-2 border-2 border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-blue-500"
+                       style="width:180px;" oninput="onExtraName('${it.id}',this)">
+                   <span class="text-xs font-bold text-slate-500">複價</span>
+                   <span class="text-slate-600 font-bold">NT$</span>
+                   <input type="text" inputmode="numeric" id="ex-amt-${it.id}" placeholder="金額"
+                       class="num-input" style="width:130px;" oninput="onExtraNum('${it.id}','amount',this,false)">
+               </div>`;
+        return `<div class="rounded-xl border-2 border-slate-100 px-3 py-2.5">
+                    <label class="flex items-center gap-2.5 cursor-pointer">
+                        <input type="checkbox" id="ex-chk-${it.id}" onchange="toggleExtra('${it.id}')"
+                            class="w-5 h-5 rounded accent-blue-600 flex-shrink-0">
+                        <span class="text-sm font-bold text-slate-700">${it.name}</span>
+                    </label>
+                    <div id="ex-fields-${it.id}" style="display:none;" class="mt-2.5 pl-7">${fields}</div>
+                </div>`;
+    }).join('');
+
+    // 帶入預設單價（圍牆 1,900 元/公尺，依新竹縣法定造價表）
+    EXTRA_ITEMS.forEach(it => {
+        if (it.mode === 'qty' && it.defPrice) {
+            extraVals[it.id].price = String(it.defPrice);
+            document.getElementById('ex-price-' + it.id).value = Number(it.defPrice).toLocaleString('zh-TW');
+        }
+    });
+}
+
+function toggleExtra(id) {
+    const on = document.getElementById('ex-chk-' + id).checked;
+    document.getElementById('ex-fields-' + id).style.display = on ? '' : 'none';
+    calculateAll();
+}
+
+// 通用數字輸入（含千位符號與游標補償）
+function onExtraNum(id, key, el, allowDecimal) {
+    const pos = el.selectionStart, old = el.value;
+    let raw = old.replace(/[^\d.]/g, '');
+    if (!allowDecimal) raw = raw.replace(/\./g, '');
+    const d = raw.indexOf('.');
+    if (d !== -1) raw = raw.slice(0, d + 1) + raw.slice(d + 1).replace(/\./g, '');
+    extraVals[id][key] = raw;
+
+    const parts = raw.split('.');
+    const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const formatted = parts.length > 1 ? intPart + '.' + parts[1] : intPart;
+    const added = (formatted.match(/,/g) || []).length - (old.match(/,/g) || []).length;
+    const newPos = Math.max(0, pos + added);
+    el.value = formatted;
+    try { el.setSelectionRange(newPos, newPos); } catch(e) {}
+    calculateAll();
+}
+
+function onExtraName(id, el) {
+    extraVals[id].name = el.value;
+    calculateAll();
+}
+
+// 建物本體造價：本縣＝面積×構造單價；外縣市＝手填
+function getMainCost() {
+    if (archType === 'local') {
+        const unitPrice = parseInt(document.getElementById('structureType').value) || 0;
+        return Math.round(getNumVal('area') * unitPrice);
+    }
+    return Math.round(parseFloat(extraVals.mainCost.amount) || 0);
+}
+
+// 收集已勾選的附屬項目，同時同步各列複價顯示
+function collectExtras() {
+    const list = [];
+    EXTRA_ITEMS.forEach(it => {
+        const chk = document.getElementById('ex-chk-' + it.id);
+        if (!chk || !chk.checked) return;
+        const v = extraVals[it.id];
+        if (it.mode === 'qty') {
+            const qty = parseFloat(v.qty) || 0;
+            const price = parseFloat(v.price) || 0;
+            const sub = Math.round(qty * price);
+            const subEl = document.getElementById('ex-sub-' + it.id);
+            if (subEl) subEl.textContent = fmt(sub);
+            if (sub > 0) list.push({ name:it.name, qty, unit:it.unit, price, sub });
+        } else {
+            const amt = Math.round(parseFloat(v.amount) || 0);
+            if (amt > 0) list.push({ name:(v.name || '').trim() || '其他項目', qty:null, unit:'', price:null, sub:amt });
+        }
+    });
+    return list;
+}
+
+// 總法定工程造價 ＝ 建物本體 ＋ 各勾選項目複價（唯讀欄位自動帶入）
+function updateTotalCost() {
+    const main   = getMainCost();
+    const extras = collectExtras();
+    const rawSum = main + extras.reduce((s, e) => s + e.sub, 0);
+    const total  = roundTo(rawSum, 1000);   // 總法定工程造價四捨五入至千位
+
+    rawValues.cost = total > 0 ? String(total) : '';
+    const el = document.getElementById('input-cost');
+    el.value = total > 0 ? total.toLocaleString('zh-TW') : '';
+    el.classList.toggle('done', total > 0);
+
+    // 欄位下方組成明細
+    const bd = document.getElementById('costBreakdown');
+    if (bd) {
+        if (total > 0) {
+            const mainTxt = archType === 'local'
+                ? `建物本體 ${fmt(getNumVal('area'),2)} ㎡ × ${fmt(parseInt(document.getElementById('structureType').value)||0)} ＝ NT$ ${fmt(main)}`
+                : `建物本體 ＝ NT$ ${fmt(main)}`;
+            const rows = extras.map(e => e.qty !== null
+                ? `${e.name} ${fmt(e.qty,2)} ${e.unit} × ${fmt(e.price)} ＝ NT$ ${fmt(e.sub)}`
+                : `${e.name} ＝ NT$ ${fmt(e.sub)}`);
+            const roundTxt = rawSum !== total
+                ? `<br><span style="color:#dc2626;font-weight:700;">小計 NT$ ${fmt(rawSum)} → 四捨五入至千位 NT$ ${fmt(total)}</span>`
+                : '<br><span style="color:#64748b;">（總額四捨五入至千位）</span>';
+            bd.innerHTML = '＝ ' + [mainTxt].concat(rows).join('<br>＋ ') + roundTxt;
+        } else {
+            bd.innerHTML = '';
+        }
+    }
+
+    // PDF 造價明細表
+    const wrap = document.getElementById('p-costDetailWrap');
+    const body = document.getElementById('p-costDetailBody');
+    if (wrap && body) {
+        if (extras.length > 0 && total > 0) {
+            const td  = 'style="padding:4pt 8pt;color:#000;border-bottom:0.5pt solid #dbeafe;"';
+            const tdR = 'style="padding:4pt 8pt;color:#000;border-bottom:0.5pt solid #dbeafe;text-align:right;font-family:\'Courier New\',monospace;font-weight:900;"';
+            const mainQty = archType === 'local'
+                ? `${fmt(getNumVal('area'),2)} ㎡ × ${fmt(parseInt(document.getElementById('structureType').value)||0)}`
+                : '—';
+            let html = `<tr><td ${td}>建物本體</td><td ${td}>${mainQty}</td><td ${tdR}>$ ${fmt(main)}</td></tr>`;
+            extras.forEach(e => {
+                const q = e.qty !== null ? `${fmt(e.qty,2)} ${e.unit} × ${fmt(e.price)}` : '—';
+                html += `<tr><td ${td}>${e.name}</td><td ${td}>${q}</td><td ${tdR}>$ ${fmt(e.sub)}</td></tr>`;
+            });
+            html += `<tr><td style="padding:4pt 8pt;font-weight:900;color:#2d5a9e;">合計<span style="font-weight:700;font-size:7.5pt;color:#64748b;">（四捨五入至千位）</span></td><td></td>`
+                 +  `<td style="padding:4pt 8pt;text-align:right;font-weight:900;color:#2d5a9e;font-family:'Courier New',monospace;">$ ${fmt(total)}</td></tr>`;
+            body.innerHTML = html;
+            wrap.style.display = '';
+        } else {
+            body.innerHTML = '';
+            wrap.style.display = 'none';
+        }
+    }
+}
+
+// ═══════════════════════════════════════════
 //  繳費階段
 // ═══════════════════════════════════════════
 function setStage(s) {
@@ -775,6 +977,8 @@ function selectType(type) {
 
     // 外縣市公會選擇器
     document.getElementById('block-homeCounty').style.display = isLocal ? 'none' : '';
+    // 建物本體造價：本縣由面積×構造單價自動算，外縣市無構造類別故手填
+    document.getElementById('block-mainCost').style.display = isLocal ? 'none' : '';
     // 切換身分時重置合作比例
     if (isLocal) {
         const soloBtn = document.getElementById('collab-solo');
@@ -866,10 +1070,11 @@ function calcCountyReviewFee(cost, county) {
             return roundTo(Math.max(30000, Math.min(100000, fee)), 100);
         }
         case 'newTaipei': {
-            // 新北市加強技術審查：≤1000萬 2萬；1000~5000萬 3萬；>5000萬 3萬+(超額×2/10,000)；max 20萬
-            if (cost <= 10000000) return 20000;
-            if (cost <= 50000000) return 30000;
-            return Math.min(200000, Math.round(30000 + (cost - 50000000) * 0.0002));
+            // 新北市加強技術審查（2026-07-29 新表）：
+            // ≤1,000萬 3萬／1,000~5,000萬 4萬／>5,000萬 5萬+(超額×2/10,000)；min 3萬、max 20萬
+            if (cost <= 10000000) return 30000;
+            if (cost <= 50000000) return 40000;
+            return Math.max(30000, Math.min(200000, Math.round(50000 + (cost - 50000000) * 0.0002)));
         }
         default: // 新竹縣或其他縣市 → 新竹縣費率
             return calcHsinchuReviewFee(cost);
@@ -888,6 +1093,7 @@ const COUNTY_NAMES = {
 //  主計算
 // ═══════════════════════════════════════════
 function calculateAll() {
+    updateTotalCost();          // 先算出總法定工程造價（建物本體＋附屬項目）
     const cost    = getNumVal('cost');
     const area    = getNumVal('area');
     const type    = document.getElementById('caseType').value;
@@ -900,7 +1106,7 @@ function calculateAll() {
     document.getElementById('p-archType').innerText  = archType==='local' ? '新竹縣建築師公會會員' : '外縣市建築師';
 
     if (archType === 'local') {
-        document.getElementById('page1-footer').style.display     = '';
+        document.getElementById('page1-continue').style.display   = '';
         document.getElementById('page2').style.display            = '';
         document.getElementById('page-outside-bank').style.display= 'none';
         document.getElementById('section-remuneration').style.display = '';
@@ -1011,7 +1217,7 @@ function calculateAll() {
         document.getElementById('owner-badge').className      = isOwner?'ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold':'hidden';
 
     } else {
-        document.getElementById('page1-footer').style.display      = 'none';
+        document.getElementById('page1-continue').style.display    = 'none';
         document.getElementById('page2').style.display             = 'none';
         document.getElementById('page-outside-bank').style.display = 'none';
         document.getElementById('section-remuneration').style.display = 'none';
@@ -1088,8 +1294,8 @@ function calculateAll() {
 
     const ts = now.toLocaleDateString('zh-TW');
     document.getElementById('p-timestamp').innerText  = ts;
-    const ts2el = document.getElementById('p-timestamp2');
-    if (ts2el) ts2el.innerText = ts;
+    const ts4el = document.getElementById('p-timestamp4');
+    if (ts4el) ts4el.innerText = ts;
 }
 
 // ═══════════════════════════════════════════
@@ -1144,7 +1350,7 @@ function generatePDF() {
 // ═══════════════════════════════════════════
 //  初始化
 // ═══════════════════════════════════════════
-window.onload = () => calculateAll();
+window.onload = () => { buildExtrasUI(); calculateAll(); };
 </script>
 </body>
 </html>
